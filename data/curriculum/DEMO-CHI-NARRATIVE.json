@@ -1,0 +1,51 @@
+{
+  "unit_id": "DEMO-CHI-NARRATIVE",
+  "subject": "CHI",
+  "curriculum_id": "DEMO",
+  "title": "（示例）閱讀與寫作：記敘文",
+  "levels": [
+    "S1"
+  ],
+  "language": "zh",
+  "source": "示範資料，並非教育局原文，只供測試流程。正式資料請用 scripts/extract_curriculum.py 由官方 PDF 擷取。",
+  "objectives": [
+    {
+      "id": "DEMO-CHI-NARRATIVE-01",
+      "text": "理解文章主旨及段落大意。",
+      "key_terms": [
+        "主旨",
+        "段意"
+      ],
+      "subtopic": "閱讀"
+    },
+    {
+      "id": "DEMO-CHI-NARRATIVE-02",
+      "text": "分析記敘文的記敘次序，包括順敘及倒敘。",
+      "key_terms": [
+        "順敘",
+        "倒敘"
+      ],
+      "subtopic": "閱讀"
+    },
+    {
+      "id": "DEMO-CHI-NARRATIVE-03",
+      "text": "辨識比喻、擬人等修辭手法，並分析其作用。",
+      "key_terms": [
+        "比喻",
+        "擬人"
+      ],
+      "subtopic": "閱讀"
+    },
+    {
+      "id": "DEMO-CHI-NARRATIVE-04",
+      "text": "運用外貌及動作描寫刻畫人物。",
+      "key_terms": [
+        "外貌描寫",
+        "動作描寫"
+      ],
+      "subtopic": "寫作",
+      "skill": true
+    }
+  ],
+  "verified": false
+}

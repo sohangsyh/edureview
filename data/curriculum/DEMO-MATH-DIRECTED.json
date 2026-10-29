@@ -1,0 +1,54 @@
+{
+  "unit_id": "DEMO-MATH-DIRECTED",
+  "subject": "MATH",
+  "curriculum_id": "DEMO",
+  "title": "（示例）有向數",
+  "levels": [
+    "S1"
+  ],
+  "language": "zh",
+  "source": "示範資料，並非教育局原文，只供測試流程。正式資料請用 scripts/extract_curriculum.py 由官方 PDF 擷取。",
+  "objectives": [
+    {
+      "id": "DEMO-MATH-DIRECTED-01",
+      "text": "認識有向數，並以有向數表示日常生活中的量，例如溫度及海拔。",
+      "key_terms": [
+        "有向數",
+        "正數",
+        "負數"
+      ]
+    },
+    {
+      "id": "DEMO-MATH-DIRECTED-02",
+      "text": "在數線上表示有向數，並比較有向數的大小。",
+      "key_terms": [
+        "數線",
+        "比較"
+      ]
+    },
+    {
+      "id": "DEMO-MATH-DIRECTED-03",
+      "text": "進行有向數的加法及減法運算。",
+      "key_terms": [
+        "加法",
+        "減法"
+      ]
+    },
+    {
+      "id": "DEMO-MATH-DIRECTED-04",
+      "text": "進行有向數的乘法及除法運算。",
+      "key_terms": [
+        "乘法",
+        "除法"
+      ]
+    },
+    {
+      "id": "DEMO-MATH-DIRECTED-05",
+      "text": "運用有向數解決日常生活中的問題。",
+      "key_terms": [
+        "應用題"
+      ]
+    }
+  ],
+  "verified": false
+}

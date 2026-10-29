@@ -1,0 +1,97 @@
+{
+  "_note": "初中（中一至中三）科目登記。網址取自教育局網站（2026 年 10 月核對）。官方文件會更新，使用前請到 documents_page 確認最新版本。mode：content＝按內容單元檢查遺漏；skills＝語文科，以老師選定的學習重點檢查。",
+  "subjects": [
+    {
+      "code": "SCI", "kla_zh": "科學教育", "kla_en": "Science Education",
+      "name_zh": "科學", "name_en": "Science", "mode": "content", "profile": "science",
+      "documents_page": "https://www.edb.gov.hk/en/curriculum-development/kla/science-edu/curriculum-documents.html",
+      "documents": [
+        {"curriculum_id": "SCI-S13-2025", "title_zh": "科學（中一至中三）課程框架（2025）", "title_en": "Science (S1-3) Curriculum Framework (2025)",
+         "status": "2025/26 及 2026/27 學年試行；2027/28 學年起由中一級逐年推行",
+         "pdf_zh": "https://www.edb.gov.hk/attachment/tc/curriculum-development/kla/science-edu/jss/JS_Science_Curriculum_Framework_2025_chinese.pdf",
+         "pdf_en": "https://www.edb.gov.hk/attachment/en/curriculum-development/kla/science-edu/jss/JS_Science_Curriculum_Framework_2025_english.pdf",
+         "unit_heading_regex": {"zh": "^單元\\s*([一二三四五六七八九十]+)\\s*[：:]\\s*(.+)$", "en": "^Unit\\s+(\\d+)\\s*[:：]?\\s*(.+)$"}},
+        {"curriculum_id": "SCI-S13-2017", "title_zh": "科學（中一至中三）補充文件（2017）", "title_en": "Science (S1-3) Supplement (2017)",
+         "status": "未參與試行新課程的學校可能仍沿用",
+         "pdf_en": "https://www.edb.gov.hk/attachment/en/curriculum-development/kla/science-edu/Science(S1-3)_supp_e_2017.pdf"}
+      ],
+      "glossaries": [
+        {"title": "中學科學科（中一至中三）常用英漢辭彙（2017）", "url": "https://www.edb.gov.hk/attachment/en/curriculum-development/kla/science-edu/ref-and-resources/SciGlossary_2017.pdf"},
+        {"title": "科學科常用指令詞（2016）", "url": "https://www.edb.gov.hk/attachment/en/curriculum-development/kla/science-edu/ref-and-resources/glossary_term_Science_20160831.pdf"}
+      ]
+    },
+    {
+      "code": "MATH", "kla_zh": "數學教育", "kla_en": "Mathematics Education",
+      "name_zh": "數學", "name_en": "Mathematics", "mode": "content", "profile": "mathematics",
+      "documents_page": "https://www.edb.gov.hk/en/curriculum-development/kla/ma/curr/index2.html",
+      "documents": [
+        {"curriculum_id": "MATH-JS-2017", "title_zh": "數學教育學習領域課程指引補充文件：初中數學學習內容（2017）", "title_en": "Supplement: Learning Content of Junior Secondary Mathematics (2017)",
+         "status": "現行；另參考《初中數學課程闡釋》（2020）",
+         "notes_url": "https://www.edb.gov.hk/en/curriculum-development/kla/ma/res/js/transitional.html"}
+      ],
+      "glossaries": []
+    },
+    {
+      "code": "CHI", "kla_zh": "中國語文教育", "kla_en": "Chinese Language Education",
+      "name_zh": "中國語文", "name_en": "Chinese Language", "mode": "skills", "profile": "chinese_language",
+      "documents_page": "https://www.edb.gov.hk/tc/curriculum-development/kla/chi-edu/curriculum-documents.html",
+      "documents": [
+        {"curriculum_id": "CHI-S13-2023", "title_zh": "中國語文課程指引（中一至中三）（2023）", "title_en": "Chinese Language Curriculum Guide (S1-3) (2023)",
+         "status": "現行；另參考《中學中國語文建議學習重點》（2021）及建議篇章",
+         "pdf_zh": "https://www.edb.gov.hk/attachment/tc/curriculum-development/kla/chi-edu/curriculum-documents/Junior_Sec_Chi_Lang_Curr_Guide_2023.pdf"}
+      ],
+      "glossaries": []
+    },
+    {
+      "code": "ENG", "kla_zh": "英國語文教育", "kla_en": "English Language Education",
+      "name_zh": "英國語文", "name_en": "English Language", "mode": "skills", "profile": "english_language",
+      "documents_page": "https://www.edb.gov.hk/en/curriculum-development/kla/eng-edu/curriculum-documents.html",
+      "documents": [
+        {"curriculum_id": "ENG-S13-2018", "title_zh": "英國語文教育學習領域課程指引補充文件（中一至中三）（2018）", "title_en": "Supplement to the ELE KLA Curriculum Guide (S1-3) (2018)",
+         "status": "現行；與《英國語文教育學習領域課程指引（小一至中六）》（2017）一併使用",
+         "pdf_en": "https://edb.gov.hk/attachment/en/curriculum-development/kla/eng-edu/Curriculum%20Document/ELE%20JS%20Supplement%202018.pdf"}
+      ],
+      "glossaries": []
+    },
+    {
+      "code": "CES", "kla_zh": "個人、社會及人文教育", "kla_en": "Personal, Social and Humanities Education",
+      "name_zh": "公民、經濟與社會", "name_en": "Citizenship, Economics and Society", "mode": "content", "profile": "humanities",
+      "documents_page": "https://edb.gov.hk/en/curriculum-development/kla/pshe/curriculum-documents.html",
+      "documents": [
+        {"curriculum_id": "CES-S13-2024", "title_zh": "公民、經濟與社會課程指引（中一至中三）（2024）", "title_en": "CES Curriculum Guide (S1-3) (2024)",
+         "status": "現行（取代《生活與社會》）"}
+      ],
+      "glossaries": [
+        {"title": "公民、經濟與社會課程（中一至中三）常用英漢辭彙", "url": "https://www.edb.gov.hk/attachment/tc/curriculum-development/kla/pshe/references-and-resources/CES%20Glossary_20260320.pdf"}
+      ]
+    },
+    {
+      "code": "HIST", "kla_zh": "個人、社會及人文教育", "kla_en": "Personal, Social and Humanities Education",
+      "name_zh": "歷史", "name_en": "History", "mode": "content", "profile": "humanities",
+      "documents_page": "https://edb.gov.hk/en/curriculum-development/kla/pshe/curriculum-documents.html",
+      "documents": [{"curriculum_id": "HIST-S13-2019", "title_zh": "歷史課程指引（中一至中三）（2019）", "title_en": "History Curriculum Guide (S1-3) (2019)", "status": "現行"}],
+      "glossaries": []
+    },
+    {
+      "code": "CHIST", "kla_zh": "個人、社會及人文教育", "kla_en": "Personal, Social and Humanities Education",
+      "name_zh": "中國歷史", "name_en": "Chinese History", "mode": "content", "profile": "humanities",
+      "documents_page": "https://edb.gov.hk/en/curriculum-development/kla/pshe/curriculum-documents.html",
+      "documents": [{"curriculum_id": "CHIST-S13-2019", "title_zh": "中國歷史課程指引（中一至中三）（2019）", "title_en": "Chinese History Curriculum Guide (S1-3) (2019)", "status": "現行（指引只有中文版；另有雙語課程框架）"}],
+      "glossaries": []
+    },
+    {
+      "code": "GEOG", "kla_zh": "個人、社會及人文教育", "kla_en": "Personal, Social and Humanities Education",
+      "name_zh": "地理", "name_en": "Geography", "mode": "content", "profile": "humanities",
+      "documents_page": "https://www.edb.gov.hk/en/curriculum-development/kla/pshe/js_geog.html",
+      "documents": [{"curriculum_id": "GEOG-S13-REV", "title_zh": "地理（中一至中三）課程框架（修訂）", "title_en": "Geography (S1-3) Curriculum Framework (revised)", "status": "修訂中：教育局 2026 年發出學校問卷（EDBC 2/2026），請留意最終版本"}],
+      "glossaries": []
+    },
+    {
+      "code": "TE", "kla_zh": "科技教育", "kla_en": "Technology Education",
+      "name_zh": "科技教育（資訊科技、設計與科技、科技與生活）", "name_en": "Technology Education (ICT, D&T, T&L)", "mode": "content", "profile": "technology",
+      "documents_page": "https://edb.gov.hk/en/curriculum-development/kla/technology-edu/curriculum-doc/index.html",
+      "documents": [{"curriculum_id": "TE-KLA-2017", "title_zh": "科技教育學習領域課程指引（小一至中六）（2017）", "title_en": "TE KLA Curriculum Guide (P1-S6) (2017)", "status": "現行"}],
+      "glossaries": []
+    }
+  ]
+}

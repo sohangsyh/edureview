@@ -1,0 +1,265 @@
+[
+  {
+    "term": "color",
+    "preferred": "colour",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "colors",
+    "preferred": "colours",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "colored",
+    "preferred": "coloured",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "favorite",
+    "preferred": "favourite",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "behavior",
+    "preferred": "behaviour",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "neighbor",
+    "preferred": "neighbour",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "neighbors",
+    "preferred": "neighbours",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "flavor",
+    "preferred": "flavour",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "vapor",
+    "preferred": "vapour",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "odor",
+    "preferred": "odour",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "humor",
+    "preferred": "humour",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "labor",
+    "preferred": "labour",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "honor",
+    "preferred": "honour",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "center",
+    "preferred": "centre",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "centers",
+    "preferred": "centres",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "liter",
+    "preferred": "litre",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "liters",
+    "preferred": "litres",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "milliliter",
+    "preferred": "millilitre",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "centimeter",
+    "preferred": "centimetre",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "centimeters",
+    "preferred": "centimetres",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "kilometer",
+    "preferred": "kilometre",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "kilometers",
+    "preferred": "kilometres",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "fiber",
+    "preferred": "fibre",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "aluminum",
+    "preferred": "aluminium",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "gray",
+    "preferred": "grey",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "analyze",
+    "preferred": "analyse",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "catalog",
+    "preferred": "catalogue",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "dialog",
+    "preferred": "dialogue",
+    "note": "American spelling (except in computing).",
+    "lang": "en"
+  },
+  {
+    "term": "defense",
+    "preferred": "defence",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "mold",
+    "preferred": "mould",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "labeled",
+    "preferred": "labelled",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "traveled",
+    "preferred": "travelled",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "modeling",
+    "preferred": "modelling",
+    "note": "American spelling.",
+    "lang": "en"
+  },
+  {
+    "term": "math",
+    "preferred": "maths／mathematics",
+    "note": "American usage.",
+    "lang": "en"
+  },
+  {
+    "term": "gasoline",
+    "preferred": "petrol",
+    "note": "American usage.",
+    "lang": "en"
+  },
+  {
+    "term": "elevator",
+    "preferred": "lift",
+    "note": "American usage.",
+    "lang": "en"
+  },
+  {
+    "term": "garbage",
+    "preferred": "rubbish",
+    "note": "American usage.",
+    "lang": "en"
+  },
+  {
+    "term": "meter",
+    "preferred": "metre",
+    "note": "As a unit of length use 'metre'; as a measuring instrument (e.g. voltmeter, water meter) 'meter' is correct.",
+    "context_sensitive": true,
+    "lang": "en"
+  },
+  {
+    "term": "meters",
+    "preferred": "metres",
+    "note": "As a unit of length use 'metres'; measuring instruments are 'meters'.",
+    "context_sensitive": true,
+    "lang": "en"
+  },
+  {
+    "term": "program",
+    "preferred": "programme",
+    "note": "A computer program is 'program'; a plan or course of activities is 'programme'.",
+    "context_sensitive": true,
+    "lang": "en"
+  },
+  {
+    "term": "practice",
+    "preferred": "practise",
+    "note": "British English: 'practice' is the noun, 'practise' the verb.",
+    "context_sensitive": true,
+    "lang": "en"
+  },
+  {
+    "term": "fall",
+    "preferred": "autumn",
+    "note": "Only when it means the season.",
+    "context_sensitive": true,
+    "lang": "en"
+  },
+  {
+    "term": "milliliters",
+    "preferred": "millilitres",
+    "note": "American spelling.",
+    "lang": "en"
+  }
+]

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>教材審查｜香港初中</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23C4122F'/><text x='16' y='23' font-size='18' text-anchor='middle' fill='white' font-family='serif'>審</text></svg>">
+</head>
+<body>
+  <a class="skip" href="#main" data-i18n="skip">跳到主要內容</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#/">
+        <span class="brand-seal" aria-hidden="true">審</span>
+        <span class="brand-text"><span data-i18n="brand">教材審查</span><small data-i18n="brand_sub">香港初中 S1–S3</small></span>
+      </a>
+      <nav aria-label="主要導覽" id="nav">
+        <a href="#/" data-nav="home" data-i18n="nav_home">首頁</a>
+        <a href="#/new" data-nav="new" data-i18n="nav_new">審查教材</a>
+        <a href="#/reviews" data-nav="reviews" data-i18n="nav_reviews">審查記錄</a>
+        <a href="#/units" data-nav="units" data-i18n="nav_units">課程資料</a>
+      </nav>
+      <div class="topbar-tools">
+        <label class="visually-hidden" for="teacher-name" data-i18n="your_name">你的名字</label>
+        <input id="teacher-name" type="text" autocomplete="name" data-i18n-placeholder="your_name" placeholder="你的名字">
+        <div class="lang-switch" role="group" aria-label="Language">
+          <button type="button" data-lang="zh" aria-pressed="true">中</button>
+          <button type="button" data-lang="en" aria-pressed="false">EN</button>
+        </div>
+      </div>
+    </div>
+    <p class="demo-bar" id="demo-bar" hidden></p>
+  </header>
+  <main id="main" tabindex="-1"></main>
+
+  <dialog id="login-dialog" aria-labelledby="login-title">
+    <form method="dialog" id="login-form">
+      <h2 id="login-title" data-i18n="login_title">輸入存取碼</h2>
+      <p data-i18n="login_body">此網站只供已登記的學校使用。存取碼由科主任或管理員提供。</p>
+      <label for="login-code" data-i18n="login_label">存取碼</label>
+      <input id="login-code" type="password" required autocomplete="current-password">
+      <p class="form-error" id="login-error" role="alert"></p>
+      <button class="btn btn-primary" type="submit" data-i18n="login_btn">進入</button>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/i18n.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

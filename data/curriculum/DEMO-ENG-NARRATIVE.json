@@ -1,0 +1,52 @@
+{
+  "unit_id": "DEMO-ENG-NARRATIVE",
+  "subject": "ENG",
+  "curriculum_id": "DEMO",
+  "title": "(Demo) Reading and writing narratives",
+  "levels": [
+    "S1",
+    "S2"
+  ],
+  "language": "en",
+  "source": "Demo data written for testing, not EDB text. Build real units from the official PDF with scripts/extract_curriculum.py.",
+  "objectives": [
+    {
+      "id": "DEMO-ENG-NARRATIVE-01",
+      "text": "Identify the main idea and supporting details in a narrative text.",
+      "key_terms": [
+        "main idea",
+        "supporting details"
+      ],
+      "subtopic": "Reading"
+    },
+    {
+      "id": "DEMO-ENG-NARRATIVE-02",
+      "text": "Follow the sequence of events using time connectives.",
+      "key_terms": [
+        "sequence",
+        "connectives"
+      ],
+      "subtopic": "Reading"
+    },
+    {
+      "id": "DEMO-ENG-NARRATIVE-03",
+      "text": "Work out the meaning of unfamiliar words from context.",
+      "key_terms": [
+        "context",
+        "meaning"
+      ],
+      "subtopic": "Reading"
+    },
+    {
+      "id": "DEMO-ENG-NARRATIVE-04",
+      "text": "Write a short narrative paragraph in the past tense.",
+      "key_terms": [
+        "past tense",
+        "narrative"
+      ],
+      "subtopic": "Writing",
+      "skill": true
+    }
+  ],
+  "verified": false
+}

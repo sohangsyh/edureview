@@ -1,0 +1,96 @@
+[
+  {
+    "term": "視頻",
+    "preferred": "影片／短片",
+    "note": "內地用語。",
+    "lang": "zh"
+  },
+  {
+    "term": "鼠標",
+    "preferred": "滑鼠",
+    "note": "內地用語。",
+    "lang": "zh"
+  },
+  {
+    "term": "打印",
+    "preferred": "列印",
+    "note": "內地用語。",
+    "lang": "zh"
+  },
+  {
+    "term": "自行車",
+    "preferred": "單車",
+    "note": "內地用語。",
+    "lang": "zh"
+  },
+  {
+    "term": "出租車",
+    "preferred": "的士",
+    "note": "內地用語。",
+    "lang": "zh"
+  },
+  {
+    "term": "公交車",
+    "preferred": "巴士",
+    "note": "內地用語。",
+    "lang": "zh"
+  },
+  {
+    "term": "西紅柿",
+    "preferred": "番茄",
+    "note": "內地用語。",
+    "lang": "zh"
+  },
+  {
+    "term": "土豆",
+    "preferred": "馬鈴薯／薯仔",
+    "note": "內地用語；書面語宜用馬鈴薯。",
+    "lang": "zh"
+  },
+  {
+    "term": "方便麵",
+    "preferred": "即食麵",
+    "note": "內地用語。",
+    "lang": "zh"
+  },
+  {
+    "term": "軟體",
+    "preferred": "軟件",
+    "note": "台灣用語。",
+    "lang": "zh"
+  },
+  {
+    "term": "網路",
+    "preferred": "網絡",
+    "note": "台灣用語。",
+    "lang": "zh"
+  },
+  {
+    "term": "質量",
+    "preferred": "品質／質素",
+    "note": "科學中解作 mass 屬正確用法（教育局課程文件亦用「質量」），切勿修改；只有解作 quality 時才需更改。",
+    "context_sensitive": true,
+    "lang": "zh"
+  },
+  {
+    "term": "信息",
+    "preferred": "資訊／訊息",
+    "note": "「遺傳信息」為教育局初中科學課程框架用語，屬正確；一般解作資訊時才改。",
+    "context_sensitive": true,
+    "lang": "zh"
+  },
+  {
+    "term": "塑料",
+    "preferred": "塑膠",
+    "note": "教育局 2025 初中科學課程框架同時使用「塑料」與「塑膠」，兩者皆屬官方用語；只需提醒全文統一，切勿判為錯誤。",
+    "context_sensitive": true,
+    "lang": "zh"
+  },
+  {
+    "term": "程序",
+    "preferred": "程式",
+    "note": "指電腦程式（program）時香港用「程式」；指步驟（procedure）時「程序」正確。",
+    "context_sensitive": true,
+    "lang": "zh"
+  }
+]

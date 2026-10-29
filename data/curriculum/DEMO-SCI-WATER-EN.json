@@ -1,0 +1,60 @@
+{
+  "unit_id": "DEMO-SCI-WATER-EN",
+  "subject": "SCI",
+  "curriculum_id": "DEMO",
+  "title": "(Demo) Water and solutions",
+  "levels": [
+    "S1"
+  ],
+  "language": "en",
+  "source": "Demo data written for testing, not EDB text. Build real units from the official PDF with scripts/extract_curriculum.py.",
+  "objectives": [
+    {
+      "id": "DEMO-SCI-WATER-EN-01",
+      "text": "Describe the three states of water and the changes between them, including melting, freezing, evaporation, boiling and condensation.",
+      "key_terms": [
+        "melting",
+        "freezing",
+        "evaporation",
+        "boiling",
+        "condensation"
+      ]
+    },
+    {
+      "id": "DEMO-SCI-WATER-EN-02",
+      "text": "Use the particle model to explain changes of state: particles move faster and the spaces between them change, but the particles themselves do not change in size.",
+      "key_terms": [
+        "particle",
+        "particles"
+      ]
+    },
+    {
+      "id": "DEMO-SCI-WATER-EN-03",
+      "text": "Recognise solutions, solutes and solvents, and state that water is a common solvent.",
+      "key_terms": [
+        "solution",
+        "solute",
+        "solvent"
+      ]
+    },
+    {
+      "id": "DEMO-SCI-WATER-EN-04",
+      "text": "Separate mixtures by filtration, evaporation and distillation, and state when each method is suitable.",
+      "key_terms": [
+        "filtration",
+        "distillation",
+        "residue",
+        "filtrate"
+      ]
+    },
+    {
+      "id": "DEMO-SCI-WATER-EN-05",
+      "text": "Follow laboratory safety rules, such as wearing safety goggles when heating.",
+      "key_terms": [
+        "safety goggles",
+        "safety"
+      ]
+    }
+  ],
+  "verified": false
+}
