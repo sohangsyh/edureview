@@ -1,40 +1,33 @@
 """離線示範模式：不需 API key、不需下載 embedding 模型，方便試用網站及開發前端。
 
-- CharNgramEmbedding：以字元二元組雜湊作向量，只供示範，檢索質素遠低於真正模型。
+- CharNgramEmbedder：以字元二元組雜湊作向量，只供示範，檢索質素遠低於真正模型。
 - OfflineReviewer：以關鍵詞比對判斷覆蓋情況，不做準確性審查。
 字形檢查與用語檢查屬規則引擎，在示範模式下照常運作。
 """
 import hashlib
 
 import numpy as np
-from chromadb.api.types import EmbeddingFunction
 
 from app.schemas import CoverageItem, CoverageOutput, CoverageStatus, FindingsOutput
+from app.services.embeddings import EmbeddingSpec
 
 
-class CharNgramEmbedding(EmbeddingFunction):
+class CharNgramEmbedder:
+    spec = EmbeddingSpec("demo", "char-ngram-demo", "demo", "char-ngram-demo")
+
     def __init__(self, dim: int = 512):
         self.dim = dim
 
-    def __call__(self, input):
+    def embed_documents(self, texts):
         out = []
-        for text in input:
+        for text in texts:
             v = np.zeros(self.dim, dtype=np.float32)
             for i in range(len(text) - 1):
                 v[int(hashlib.md5(text[i:i + 2].encode()).hexdigest(), 16) % self.dim] += 1
-            out.append(v / (np.linalg.norm(v) + 1e-9))
+            out.append((v / (np.linalg.norm(v) + 1e-9)).tolist())
         return out
 
-    @staticmethod
-    def name() -> str:
-        return "char-ngram-demo"
-
-    def get_config(self):
-        return {"dim": self.dim}
-
-    @staticmethod
-    def build_from_config(config):
-        return CharNgramEmbedding(**config)
+    embed_queries = embed_documents
 
 
 class OfflineReviewer:

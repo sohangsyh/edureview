@@ -151,6 +151,19 @@ def test_english_material_with_english_report(client):
     assert "Script check: pass" in md
 
 
+def test_embedding_model_choices(client):
+    cfg = client.get("/api/config").json()
+    models = {m["key"]: m for m in cfg["embedding_models"]}
+    assert list(models) == ["bge-m3", "jina-v3", "gte-qwen2-7b", "cohere-v3", "openai-3"]
+    assert cfg["embedding_default"] == "demo" and not any(m["available"] for m in models.values())
+    files = {"file": ("貼上的文字.txt", SAMPLE, "text/plain")}
+    res = client.post("/api/reviews", files=files, data={"unit_id": "S1-SAMPLE-01", "embedding_model": "openai-3"})
+    assert res.status_code == 422
+    res = client.post("/api/reviews", files=files, data={"unit_id": "S1-SAMPLE-01"})
+    row = _wait(client, res.json()["id"])
+    assert row["filename"] == "貼上的文字.txt" and row["report"]["embedding_model"] == "char-ngram-demo"
+
+
 def test_cross_language_warning(client):
     data = (SAMPLES / "science_water_en.txt").read_bytes()
     res = client.post("/api/reviews", files={"file": ("water.txt", data, "text/plain")},

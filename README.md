@@ -28,7 +28,8 @@ DEMO_MODE=true uvicorn app.main:app --port 8000
 
 ## 網站功能
 
-- **新審查**：上傳教材、選擇課程單元、決定是否檢查延展部分。審查在背景執行，頁面顯示進度。
+- **新審查**：上傳教材檔案或直接貼上全文、選擇課程單元、決定是否檢查延展部分。審查在背景執行，頁面顯示進度。
+- **檢索模型**：每次審查可選 BAAI/bge-m3、jina-embeddings-v3、gte-Qwen2-7B-instruct（本機執行）或 Cohere Embed v3、OpenAI text-embedding-3（需 `COHERE_API_KEY`／`OPENAI_API_KEY`）。預設由 `EMBEDDING_MODEL` 設定；每個模型各有一個課程索引，第一次使用時自動建立，亦可預先執行 `python -m scripts.ingest_curriculum --model jina-v3`。選用 Cohere 或 OpenAI 時，教材文字亦會傳送到該服務。
 - **審查報告**：字形檢查印章（合格／不合格）、課程重點覆蓋清單、以紅筆批改方式顯示的修改建議；每項建議可「接受」或「不接受」，並可複製修改文字。
 - **下載**：審查報告（Markdown），以及套用了所有已接受建議的修訂版教材（未能自動套用的會列出）。
 - **審查記錄**：所有過往審查。
@@ -113,7 +114,8 @@ hk-edu-reviewer/
 │   └── services/
 │       ├── parser.py            # PDF/TXT 解析；處理中文斷行、Big5-HKSCS 編碼
 │       ├── chunker.py           # 段落→句子切塊，保留頁碼
-│       ├── curriculum_store.py  # Chroma：課程重點索引 + 教材臨時索引
+│       ├── embeddings.py        # 檢索模型登記：bge-m3、jina-v3、gte-Qwen2、Cohere、OpenAI
+│       ├── curriculum_store.py  # Chroma：課程重點索引（按模型分開）+ 教材臨時索引
 │       ├── script_check.py      # 字形檢查（硬性）：簡體字
 │       ├── terminology.py       # 香港用語詞表；官方文件用語自動受保護
 │       ├── reviewer.py          # Claude API：強制 tool use 取得結構化輸出 + 重試

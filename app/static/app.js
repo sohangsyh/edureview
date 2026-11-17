@@ -145,7 +145,13 @@ async function viewHome() {
 /* ---------- 審查（三個步驟） ---------- */
 async function viewNew(params) {
   const subjects = await loadSubjects();
-  const form = { subject: params.get("subject") || "", level: params.get("level") || "", unit: null, file: null };
+  const models = state.config.embedding_models || [];
+  const usable = models.filter((m) => m.available).map((m) => m.key);
+  let savedModel = "";
+  try { savedModel = localStorage.getItem("hkr-embed") || ""; } catch { /* 略過 */ }
+  const form = { subject: params.get("subject") || "", level: params.get("level") || "", unit: null, file: null,
+    mode: "file", text: "",
+    model: [savedModel, state.config.embedding_default].find((k) => usable.includes(k)) || usable[0] || "" };
 
   setView(`
     <div class="page-head"><div><h1>${esc(t("new_title"))}</h1></div></div>
@@ -165,11 +171,36 @@ async function viewNew(params) {
         <li class="step" id="step-2"><h2>${esc(t("step2"))}</h2><div id="unit-area"></div></li>
         <li class="step" id="step-3">
           <h2>${esc(t("step3"))}</h2>
-          <label class="drop" id="drop">
-            <input type="file" id="file" accept=".pdf,.txt,.md">
-            <strong id="drop-title">${esc(t("drop_title"))}</strong>
-            <span class="meta" id="drop-meta">${esc(t("drop_meta", { mb: state.config.max_upload_mb }))}</span>
-          </label>
+          <div class="choices" role="radiogroup" aria-label="${esc(t("step3"))}" style="margin-bottom:14px">
+            ${["file", "text"].map((m) => `<label class="choice"><input type="radio" name="input_mode" value="${m}" ${m === form.mode ? "checked" : ""}>
+              <span>${esc(t(`input_${m}`))}</span></label>`).join("")}
+          </div>
+          <div id="file-panel" ${form.mode === "file" ? "" : "hidden"}>
+            <label class="drop" id="drop">
+              <input type="file" id="file" accept=".pdf,.txt,.md">
+              <strong id="drop-title">${esc(t("drop_title"))}</strong>
+              <span class="meta" id="drop-meta">${esc(t("drop_meta", { mb: state.config.max_upload_mb }))}</span>
+            </label>
+          </div>
+          <div id="text-panel" class="paste-panel" ${form.mode === "text" ? "" : "hidden"}>
+            <label class="field-label" for="paste-title">${esc(t("paste_title"))}</label>
+            <input type="text" id="paste-title" placeholder="${esc(t("pasted_name"))}">
+            <label class="field-label" for="paste" style="margin-top:12px">${esc(t("paste_label"))}</label>
+            <textarea id="paste" rows="12" placeholder="${esc(t("paste_placeholder"))}"></textarea>
+            <p class="meta" id="paste-count" style="margin:6px 0 0">${esc(t("chars_n", { n: 0 }))}</p>
+          </div>
+          <div style="margin-top:18px">
+            <span class="field-label">${esc(t("embed_label"))}</span>
+            ${state.config.demo_mode ? `<div class="notice notice-info">${esc(t("embed_demo"))}</div>` : ""}
+            <div class="unit-list model-list" role="radiogroup" aria-label="${esc(t("embed_label"))}">
+              ${models.map((m) => `<label class="unit-card"><input type="radio" name="embedding_model" value="${esc(m.key)}"
+                ${m.key === form.model ? "checked" : ""} ${m.available ? "" : "disabled"}>
+                <span class="title">${esc(m.label)}${m.key === state.config.embedding_default ? ` <span class="tag">${esc(t("embed_default"))}</span>` : ""}</span>
+                <span class="meta"><span>${esc(state.lang === "en" ? m.note_en : m.note_zh)}</span>
+                  ${m.available ? "" : `<span class="tag tag-warn">${esc(t(`reason_${m.reason}`, { env: m.env }))}</span>`}</span></label>`).join("")}
+            </div>
+            <p class="meta" style="margin:8px 0 0">${esc(t("embed_hint"))}</p>
+          </div>
           <div style="margin-top:18px">
             <span class="field-label">${esc(t("report_lang"))}</span>
             <div class="choices">
@@ -188,7 +219,7 @@ async function viewNew(params) {
   const markSteps = () => {
     $("#step-1").classList.toggle("is-done", !!form.subject);
     $("#step-2").classList.toggle("is-done", !!form.unit);
-    $("#step-3").classList.toggle("is-done", !!form.file);
+    $("#step-3").classList.toggle("is-done", form.mode === "file" ? !!form.file : !!form.text.trim());
   };
 
   async function renderUnits() {
@@ -259,6 +290,22 @@ async function viewNew(params) {
   ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove("is-over")));
   drop.addEventListener("drop", (e) => { e.preventDefault(); if (e.dataTransfer.files.length) { fileInput.files = e.dataTransfer.files; showFile(); } });
 
+  $$('input[name="input_mode"]', formEl).forEach((r) => r.addEventListener("change", () => {
+    form.mode = r.value;
+    $("#file-panel").hidden = form.mode !== "file";
+    $("#text-panel").hidden = form.mode !== "text";
+    markSteps();
+  }));
+  $("#paste").addEventListener("input", (e) => {
+    form.text = e.target.value;
+    $("#paste-count").textContent = t("chars_n", { n: form.text.trim().length.toLocaleString() });
+    markSteps();
+  });
+  $$('input[name="embedding_model"]', formEl).forEach((r) => r.addEventListener("change", () => {
+    form.model = r.value;
+    try { localStorage.setItem("hkr-embed", form.model); } catch { /* 略過 */ }
+  }));
+
   formEl.addEventListener("submit", async (e) => {
     e.preventDefault();
     const err = $("#form-error");
@@ -269,11 +316,20 @@ async function viewNew(params) {
     const scopeSome = $('input[name="scope"]:checked')?.value === "some";
     const points = $$('input[name="point"]:checked').map((c) => c.value);
     if ((skills || scopeSome) && !points.length) return (err.textContent = t("need_points"));
-    if (!form.file) return (err.textContent = t("need_file"));
-    if (form.file.size > state.config.max_upload_mb * 1048576) return (err.textContent = t("too_big", { mb: state.config.max_upload_mb }));
+    let upload = form.file, name = form.file?.name;
+    if (form.mode === "text") {
+      if (!form.text.trim()) return (err.textContent = t("need_text"));
+      // 貼上的文字以 UTF-8 文字檔上傳，與檔案走同一條審查流程
+      const title = ($("#paste-title").value.trim() || t("pasted_name")).replace(/[\\/:*?"<>|]/g, " ");
+      upload = new Blob([form.text], { type: "text/plain;charset=utf-8" });
+      name = /\.(txt|md)$/i.test(title) ? title : `${title}.txt`;
+    } else if (!form.file) return (err.textContent = t("need_file"));
+    if (upload.size > state.config.max_upload_mb * 1048576) return (err.textContent = t("too_big", { mb: state.config.max_upload_mb }));
+    if (!state.config.demo_mode && !form.model) return (err.textContent = t("need_model"));
 
     const fd = new FormData();
-    fd.append("file", form.file);
+    fd.append("file", upload, name);
+    if (!state.config.demo_mode) fd.append("embedding_model", form.model);
     fd.append("unit_id", form.unit.unit_id);
     fd.append("include_extension", !!$("#ext")?.checked);
     if (skills || scopeSome) fd.append("objective_ids", points.join(","));
@@ -388,7 +444,7 @@ function renderReport(row) {
       <div class="report-head">
         <h1>${esc(row.filename)}</h1>
         <p class="meta">${subject ? `${esc(subject)}${P().colon}` : ""}${esc(r.unit_title)}<br>
-          ${esc(scope)}${P().stop}${esc(t("material_lang", { l: t(r.material_language === "en" ? "lang_en" : "lang_zh") }))}<br>
+          ${esc(scope)}${P().stop}${esc(t("material_lang", { l: t(r.material_language === "en" ? "lang_en" : "lang_zh") }))}${r.embedding_model ? `${P().stop}${esc(t("embed_used", { m: r.embedding_model }))}` : ""}<br>
           ${esc(fmtDate(row.created_at))}${row.teacher ? `${P().comma}${esc(t("submitted_by", { n: row.teacher }))}` : ""}</p>
       </div>
 

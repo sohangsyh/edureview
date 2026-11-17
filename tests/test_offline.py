@@ -124,6 +124,26 @@ def test_language_detection():
     assert detect_language("蒸發（evaporation）是水由液態變成氣態的過程。") == "zh"
 
 
+def test_embedding_registry_resolves_names_and_checks_keys():
+    import pytest
+
+    from app.config import Settings
+    from app.services.embeddings import EmbeddingRegistry, EmbeddingUnavailable
+    reg = EmbeddingRegistry(Settings(_env_file=None, embedding_model="BAAI/bge-m3",
+                                     openai_api_key="", cohere_api_key=""))
+    assert reg.default_key == "bge-m3"
+    reasons = {m["key"]: m["reason"] for m in reg.options()}
+    assert reasons["openai-3"] == "no_key" and reasons["cohere-v3"] == "no_key"
+    with pytest.raises(EmbeddingUnavailable):
+        reg.get("openai-3")
+    with pytest.raises(EmbeddingUnavailable):
+        reg.get("no-such-model")
+    keyed = EmbeddingRegistry(Settings(_env_file=None, openai_api_key="sk-test"))
+    assert keyed.get("openai-3").spec.model_id == "text-embedding-3-large"
+    custom = EmbeddingRegistry(Settings(_env_file=None, embedding_model="BAAI/bge-small-zh-v1.5"))
+    assert custom.specs[custom.default_key].model_id == "BAAI/bge-small-zh-v1.5"
+
+
 def test_every_subject_has_a_profile():
     from app.prompts.profiles import PROFILES, build_system_prompt
     from app.subjects import load_subjects

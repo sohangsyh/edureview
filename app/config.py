@@ -22,8 +22,13 @@ class Settings(BaseSettings):
     llm_concurrency: int = 4
 
     # RAG
-    # 多語模型：英文教材也能對照中文課程文件（反之亦然）。只審中文教材可改用 BAAI/bge-small-zh-v1.5（較小）
-    embedding_model: str = "BAAI/bge-m3"
+    # 預設檢索模型，網頁可逐次改選：bge-m3 / jina-v3 / gte-qwen2-7b / cohere-v3 / openai-3。
+    # 亦可填任何 sentence-transformers 模型名稱，例如只審中文教材可用 BAAI/bge-small-zh-v1.5（較小）
+    embedding_model: str = "bge-m3"
+    cohere_api_key: str = ""
+    cohere_embedding_model: str = "embed-multilingual-v3.0"
+    openai_api_key: str = ""
+    openai_embedding_model: str = "text-embedding-3-large"
     chroma_path: Path = BASE_DIR / "data" / "chroma"
     evidence_top_k: int = 3        # 每個課程重點從教材檢索幾個片段
     curriculum_top_k: int = 4      # 每個教材片段檢索幾個相關課程重點

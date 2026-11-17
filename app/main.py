@@ -22,7 +22,8 @@ from pydantic import BaseModel
 from app.config import Settings, get_settings
 from app.db import Database
 from app.schemas import ReviewReport
-from app.services.curriculum_store import CurriculumStore, build_embedding_fn
+from app.services.curriculum_store import CurriculumStore
+from app.services.embeddings import EmbeddingRegistry, EmbeddingUnavailable
 from app.services.parser import ParseError
 from app.services.patcher import apply_patches
 from app.services.pipeline import ReviewInputError, ReviewPipeline
@@ -41,23 +42,25 @@ class Services:
     pipeline: ReviewPipeline
     db: Database
     subjects: dict[str, Subject]
+    embeddings: EmbeddingRegistry
 
 
 def build_services(settings: Settings) -> Services:
     if settings.demo_mode:
-        from app.services.offline import CharNgramEmbedding, OfflineReviewer
-        embed_fn, reviewer = CharNgramEmbedding(), OfflineReviewer()
+        from app.services.offline import OfflineReviewer
+        reviewer = OfflineReviewer()
         # 示範模式的向量與正式模式不相容，分開存放
         settings = settings.model_copy(update={"chroma_path": settings.chroma_path.with_name("chroma-demo")})
     else:
         from app.services.reviewer import LLMReviewer
-        embed_fn, reviewer = build_embedding_fn(settings.embedding_model), LLMReviewer(settings)
-    store = CurriculumStore(settings, embed_fn)
-    store.ensure_indexed()
+        reviewer = LLMReviewer(settings)
+    embeddings = EmbeddingRegistry(settings)
+    store = CurriculumStore(settings)
+    store.ensure_indexed(embeddings.get())
     subjects = load_subjects(settings.subjects_path)
     terms = TerminologyChecker(settings.glossary_dir, store.official_texts())
-    pipeline = ReviewPipeline(settings, store, reviewer, terms, embed_fn, subjects)
-    return Services(settings, store, pipeline, Database(settings.db_path), subjects)
+    pipeline = ReviewPipeline(settings, store, reviewer, terms, embeddings, subjects)
+    return Services(settings, store, pipeline, Database(settings.db_path), subjects, embeddings)
 
 
 def _token(code: str) -> str:
@@ -94,10 +97,13 @@ def create_app(services: Services | None = None) -> FastAPI:
 
     @app.get("/api/config")
     async def config(request: Request):
-        s = svc(request).settings
+        services_ = svc(request)
+        s = services_.settings
         return {"demo_mode": s.demo_mode, "access_required": bool(s.access_code),
                 "model": "示範模式（未使用 AI）" if s.demo_mode else s.llm_model,
-                "max_upload_mb": s.max_upload_mb}
+                "max_upload_mb": s.max_upload_mb,
+                "embedding_models": services_.embeddings.options(),
+                "embedding_default": services_.embeddings.default_key}
 
     class Login(BaseModel):
         code: str
@@ -172,13 +178,13 @@ def create_app(services: Services | None = None) -> FastAPI:
 
     # ---------- 審查 ----------
     async def run_job(services_: Services, rid: str, filename: str, data: bytes, unit_id: str, ext: bool,
-                      objective_ids: list[str] | None, report_lang: str):
+                      objective_ids: list[str] | None, report_lang: str, embedding_model: str | None):
         db = services_.db
         try:
             report = await services_.pipeline.run(
                 filename, data, unit_id, ext, objective_ids, report_lang,
                 progress=lambda stage, value: db.update_progress(rid, stage, value),
-                on_text=lambda text: db.set_material(rid, text))
+                on_text=lambda text: db.set_material(rid, text), embedding_model=embedding_model)
             db.finish(rid, report.model_dump(mode="json"))
         except (ParseError, ReviewInputError) as exc:
             db.fail(rid, str(exc))
@@ -188,7 +194,8 @@ def create_app(services: Services | None = None) -> FastAPI:
     @app.post("/api/reviews", status_code=202)
     async def create_review(request: Request, file: UploadFile = File(...), unit_id: str = Form(...),
                             include_extension: bool = Form(False), teacher: str = Form(""),
-                            objective_ids: str = Form(""), report_lang: str = Form("zh")):
+                            objective_ids: str = Form(""), report_lang: str = Form("zh"),
+                            embedding_model: str = Form("")):
         services_ = svc(request)
         try:
             unit = services_.store.get_unit(unit_id)
@@ -196,6 +203,10 @@ def create_app(services: Services | None = None) -> FastAPI:
             raise HTTPException(404, "找不到此單元")
         if report_lang not in ("zh", "en"):
             raise HTTPException(422, "report_lang 只可為 zh 或 en")
+        try:
+            services_.embeddings.get(embedding_model or None)
+        except EmbeddingUnavailable as exc:
+            raise HTTPException(422, str(exc))
         ids = [i for i in objective_ids.split(",") if i] if objective_ids else []
         unknown = [i for i in ids if i not in {o.id for o in unit.objectives}]
         if unknown:
@@ -213,7 +224,7 @@ def create_app(services: Services | None = None) -> FastAPI:
         services_.db.create_review(rid, name, unit_id, unit.title, include_extension, teacher.strip(),
                                    unit.subject, report_lang)
         task = asyncio.create_task(run_job(services_, rid, name, data, unit_id, include_extension,
-                                           ids or None, report_lang))
+                                           ids or None, report_lang, embedding_model or None))
         tasks.add(task)
         task.add_done_callback(tasks.discard)
         return {"id": rid}

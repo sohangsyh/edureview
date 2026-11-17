@@ -9,7 +9,7 @@ L = {
         "status": {"covered": "已處理", "partial": "部分處理", "missing": "缺漏", "unassessed": "未能評估"},
         "action": {"insert_after": "於下句之後插入", "replace": "取代", "delete": "刪除"},
         "title": "教材審查報告", "unit": "單元", "scope": "範圍", "core_ext": "核心＋延展", "core": "只限核心部分",
-        "selected": "老師選定 {n} 項學習重點", "model": "模型",
+        "selected": "老師選定 {n} 項學習重點", "model": "模型", "embed": "檢索模型",
         "pass": "**字形檢查：合格**（未發現簡體字）",
         "fail": "**字形檢查：不合格**　發現 {n} 個簡體字，涉及 {s} 句，發佈前必須修正",
         "unverified": "> 注意：此單元課程資料尚未經老師核對，結果僅供參考。",
@@ -24,7 +24,7 @@ L = {
         "status": {"covered": "Covered", "partial": "Partly covered", "missing": "Missing", "unassessed": "Not assessed"},
         "action": {"insert_after": "insert after", "replace": "replace", "delete": "delete"},
         "title": "Material review report", "unit": "Unit", "scope": "Scope", "core_ext": "core and extension", "core": "core only",
-        "selected": "{n} learning points chosen by the teacher", "model": "Model",
+        "selected": "{n} learning points chosen by the teacher", "model": "Model", "embed": "Retrieval model",
         "pass": "**Script check: pass** (no simplified characters)",
         "fail": "**Script check: fail**: {n} simplified character(s) in {s} sentence(s); fix before publishing",
         "unverified": "> Note: this unit's curriculum data has not been checked by a teacher yet.",
@@ -41,7 +41,8 @@ def render_markdown(r: ReviewReport) -> str:
     scope = (t["selected"].format(n=r.selected_objectives) if r.selected_objectives
              else t["core_ext"] if r.include_extension else t["core"])
     lines = [f"# {t['title']}: {r.unit_title}" if r.report_lang == "en" else f"# {t['title']}：{r.unit_title}", "",
-             f"{t['unit']}: `{r.unit_id}`  {t['scope']}: {scope}  {t['model']}: `{r.model}`", "",
+             f"{t['unit']}: `{r.unit_id}`  {t['scope']}: {scope}  {t['model']}: `{r.model}`"
+             + (f"  {t['embed']}: `{r.embedding_model}`" if r.embedding_model else ""), "",
              t["pass"] if sc.passed else t["fail"].format(n=sc.simplified_chars, s=sc.sentences), "",
              t["coverage"], ""]
     if not r.unit_verified:

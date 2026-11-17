@@ -135,6 +135,7 @@ class ReviewReport(BaseModel):
     unit_verified: bool = False
     include_extension: bool = False
     model: str
+    embedding_model: str = ""
     script_check: ScriptCheckSummary
     coverage_summary: dict[str, int]
     coverage: list[CoverageResult]

@@ -17,6 +17,7 @@ from app.schemas import (Category, Chunk, CoverageItem, CoverageResult, Coverage
                          Finding, LocatedFinding, Objective, ReviewReport, Severity, Unit)
 from app.services.chunker import chunk_pages
 from app.services.curriculum_store import CurriculumStore, MaterialIndex
+from app.services.embeddings import EmbeddingRegistry, EmbeddingUnavailable
 from app.services.language import detect_language
 from app.services.parser import ParseError, parse_document
 from app.services.reviewer import LLMReviewer
@@ -72,35 +73,42 @@ def _batched(items, n):
 
 class ReviewPipeline:
     def __init__(self, settings: Settings, store: CurriculumStore, reviewer: LLMReviewer,
-                 terms: TerminologyChecker, embed_fn, subjects: dict[str, Subject] | None = None):
+                 terms: TerminologyChecker, embeddings: EmbeddingRegistry,
+                 subjects: dict[str, Subject] | None = None):
         self.subjects = subjects or {}
         self.script = ScriptChecker()
         self.s = settings
         self.store = store
         self.reviewer = reviewer
         self.terms = terms
-        self.embed_fn = embed_fn
+        self.embeddings = embeddings
 
     # ---------- 檢索（同步，放到 thread 執行） ----------
-    def _retrieve(self, unit: Unit, objectives: list[Objective], chunks: list[Chunk],
+    def _retrieve(self, embedder, unit: Unit, objectives: list[Objective], chunks: list[Chunk],
                   batches: list[list[Chunk]]):
-        index = MaterialIndex(self.embed_fn, chunks)
+        # 第一次使用某模型時，先為課程重點建立該模型的索引
+        self.store.ensure_indexed(embedder)
+        index = MaterialIndex(embedder, chunks)
         try:
             # 反向檢索：以「課程重點」查「教材」，找不到證據 = 可能遺漏
+            queries = [f"{o.text} {' '.join(o.key_terms)}" for o in objectives]
+            hits = index.search(embedder.embed_queries(queries), self.s.evidence_top_k)
             evidence: dict[str, list[Chunk]] = {}
-            for o in objectives:
-                found = index.keyword_hits(o.key_terms) + index.search(
-                    f"{o.text} {' '.join(o.key_terms)}", self.s.evidence_top_k)
+            for o, found in zip(objectives, hits):
+                found = index.keyword_hits(o.key_terms) + found
                 evidence[o.id] = list({c.chunk_id: c for c in found}.values())[: self.s.evidence_top_k + 2]
         finally:
             index.close()
 
         # 正向檢索：以「教材」查「課程重點」，作為準確性審查的參考依據
+        chunk_hits = self.store.search(embedder.embed_queries([c.text for c in chunks]),
+                                       self.s.curriculum_top_k, embedder, unit_id=unit.unit_id)
+        by_chunk = {c.chunk_id: objs for c, objs in zip(chunks, chunk_hits)}
         related: list[list[Objective]] = []
         for batch in batches:
             objs: dict[str, Objective] = {}
             for c in batch:
-                for o in self.store.search(c.text, self.s.curriculum_top_k, unit_id=unit.unit_id):
+                for o in by_chunk[c.chunk_id]:
                     objs[o.id] = o
             related.append(list(objs.values()))
         return evidence, related
@@ -109,8 +117,13 @@ class ReviewPipeline:
     async def run(self, filename: str, data: bytes, unit_id: str, include_extension: bool = False,
                   objective_ids: list[str] | None = None, report_lang: str = "zh",
                   progress: Callable[[str, float], None] | None = None,
-                  on_text: Callable[[str], None] | None = None) -> ReviewReport:
+                  on_text: Callable[[str], None] | None = None,
+                  embedding_model: str | None = None) -> ReviewReport:
         report = progress or (lambda stage, value: None)
+        try:
+            embedder = self.embeddings.get(embedding_model)
+        except EmbeddingUnavailable as exc:
+            raise ReviewInputError(str(exc)) from exc
         unit = self.store.get_unit(unit_id)
         subject = self.subjects.get(unit.subject)
         mode = subject.mode if subject else "content"
@@ -142,7 +155,7 @@ class ReviewPipeline:
         rule_findings = script_findings + term_findings
         batches = list(_batched(chunks, self.s.accuracy_batch_size))
         report("retrieve", 0.15)
-        evidence, related = await asyncio.to_thread(self._retrieve, unit, objectives, chunks, batches)
+        evidence, related = await asyncio.to_thread(self._retrieve, embedder, unit, objectives, chunks, batches)
 
         cov_groups = list(_batched(objectives, self.s.coverage_group_size))
         cov_coros = []
@@ -171,12 +184,12 @@ class ReviewPipeline:
         return self._assemble(unit, objectives, chunks, results[: len(cov_coros)],
                               results[len(cov_coros):], rule_findings, script_summary,
                               include_extension, material_lang, report_lang,
-                              selected=bool(objective_ids))
+                              selected=bool(objective_ids), embedding_label=embedder.spec.label)
 
     # ---------- 驗證與組裝 ----------
     def _assemble(self, unit, objectives, chunks, cov_results, acc_results, rule_findings,
                   script_summary, include_extension, material_lang="zh", report_lang="zh",
-                  selected=False) -> ReviewReport:
+                  selected=False, embedding_label="") -> ReviewReport:
         msg = _MSG.get(report_lang, _MSG["zh"])
         warnings: list[str] = []
         if not unit.verified:
@@ -266,5 +279,6 @@ class ReviewPipeline:
                             selected_objectives=len(objectives) if selected else 0,
                             curriculum_id=unit.curriculum_id, unit_verified=unit.verified,
                             include_extension=include_extension, model=self.s.llm_model,
+                            embedding_model=embedding_label,
                             script_check=script_summary, coverage_summary=summary,
                             coverage=cov_list, findings=final, warnings=warnings)
