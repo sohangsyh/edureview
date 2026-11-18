@@ -7,8 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from app.prompts.profiles import build_system_prompt
-from app.prompts.templates import build_accuracy_prompt, build_coverage_prompt
 from app.schemas import Chunk, ReviewReport, Unit
 from app.services.chunker import chunk_pages
 from app.services.language import detect_language
@@ -16,7 +14,7 @@ from app.services.parser import Page, _join_broken_lines
 from app.services.patcher import apply_patches
 from app.services.renderer import render_markdown
 from app.services.script_check import _S2HK, _T2S, ScriptChecker, scan_sentence
-from app.services.terminology import TermHint, TerminologyChecker
+from app.services.terminology import TerminologyChecker
 from scripts import build_static
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -85,24 +83,6 @@ def test_rule_checks_match_python():
     assert js[2] == [dump(findings), {k: [asdict(h) for h in v] for k, v in hints.items()}]
 
 
-def test_prompts_match_python():
-    unit = UNITS["S1-SAMPLE-01"]
-    chunks = [Chunk(**c) for c in CHUNKS[:3]] + [Chunk(chunk_id="p2-c1", page=2, text="A <b> & \"quote\"")]
-    pairs = [(unit.objectives[0], chunks[:2]), (unit.objectives[1], chunks[2:])]
-    hints = [TermHint("t-c1", "質量", "質量", "按語境判斷 \"mass\"")]
-    js = run_js([{"op": "system_prompt", "profile": p, "lang": lang}
-                 for p in ("science", "english_language", "nope") for lang in ("zh", "en")]
-                + [{"op": "coverage_prompt", "unit_id": unit.unit_id, "mode": mode,
-                    "pairs": [[o.id, dump(cs)] for o, cs in pairs]} for mode in ("content", "skills")]
-                + [{"op": "accuracy_prompt", "chunks": dump(chunks), "related": [o.id for o in unit.objectives[:2]],
-                    "hints": [asdict(h) for h in hints]},
-                   {"op": "accuracy_prompt", "chunks": dump(chunks), "related": [], "hints": []}])
-    expected = ([build_system_prompt(p, lang) for p in ("science", "english_language", "nope") for lang in ("zh", "en")]
-                + [build_coverage_prompt(unit, pairs, mode) for mode in ("content", "skills")]
-                + [build_accuracy_prompt(chunks, unit.objectives[:2], hints), build_accuracy_prompt(chunks, [], [])])
-    assert js == expected
-
-
 @pytest.mark.parametrize("sample,unit_id,lang", [
     ("science_water_zh.txt", "S1-SAMPLE-01", "zh"),
     ("science_water_en.txt", "DEMO-SCI-WATER-EN", "en"),
@@ -133,13 +113,28 @@ def test_full_offline_review_matches_python(client_factory, sample, unit_id, lan
     assert patched == {"text": r.text, "applied": r.applied, "unapplied": r.unapplied}
 
 
-def test_tool_output_validation():
-    good = {"findings": [{"category": "factual_error", "severity": "high", "issue": "i", "suggestion": "s", "confidence": 0.9}]}
-    bad = {"findings": [{"category": "nonsense", "severity": "high", "issue": "i", "suggestion": "s", "confidence": 2}]}
-    assert run_js([{"op": "validate", "schema": "findings", "value": good},
-                   {"op": "validate", "schema": "findings", "value": bad},
-                   {"op": "validate", "schema": "coverage", "value": {"items": [{"objective_id": "a", "status": "covered"}]}}]) \
-        == [0, 2, 1]
+def test_bge_m3_similarity_can_only_raise_missing_to_partial():
+    text = ["水受熱後會蒸發。"]
+    oid = "S1-SAMPLE-01-05"
+    judged = run_js([{"op": "judge", "objective_id": oid, "chunks": text, "lang": "zh", "score": s} for s in (None, 0.59, 0.6)]
+                    + [{"op": "judge", "objective_id": "S1-SAMPLE-01-03", "chunks": ["溶液由溶質及溶劑組成，水是常見的溶劑，可溶解鹽。"],
+                        "lang": "en", "score": 0.1}])
+    assert [j["status"] for j in judged] == ["missing", "missing", "partial", "covered"]
+    assert judged[0]["rationale"].startswith("示範模式以關鍵詞比對判斷")
+    assert judged[2]["rationale"].startswith("bge-m3 語意相似度 0.60（找到相關內容）")
+    assert judged[2]["evidence_chunk_ids"] == ["t-c1"]
+    assert judged[3]["rationale"].startswith("bge-m3 similarity 0.10 (no closely related content); keyword match: 4/4")
+
+
+def test_review_with_bge_m3_and_fallback():
+    text = (SAMPLES / "science_water_zh.txt").read_text("utf-8")
+    base = {"op": "review", "filename": "a.txt", "text": text, "unit_id": "S1-SAMPLE-01", "report_lang": "zh"}
+    plain, same, broken = run_js([base, {**base, "embedder": "same"}, {**base, "embedder": "broken"}])
+    assert (same["model"], same["embedding_model"]) == ("semantic-match", "BAAI/bge-m3")
+    assert all(c["status"] != "missing" for c in same["coverage"])
+    assert (broken["model"], broken["embedding_model"]) == ("keyword-match", "char-bigram (browser)")
+    assert broken["coverage"] == plain["coverage"]
+    assert broken["warnings"] == plain["warnings"] + ["未能載入 bge-m3（network down），本次改用關鍵詞比對判斷覆蓋，結果較粗略。"]
 
 
 @pytest.fixture

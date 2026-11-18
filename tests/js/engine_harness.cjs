@@ -15,9 +15,15 @@ const ctx = E.createContext({
   subjects: readJson("data/subjects.json").subjects,
   units: manifest.curriculum.map((f) => readJson(`data/curriculum/${f}`)),
   glossaries: manifest.glossary.map((f) => readJson(`data/glossary/${f}`)),
-  opencc, prompts: readJson("app/static/vendor/prompts.json"), schemas: readJson("app/static/vendor/tool-schemas.json"),
+  opencc,
 });
 const objective = (id) => [...ctx.units.values()].flatMap((u) => u.objectives).find((o) => o.id === id);
+
+// 測試用：「same」令所有片段與學習重點相似度為 1；「broken」模擬模型下載失敗
+const FAKE_EMBEDDERS = {
+  same: { label: "BAAI/bge-m3", embed: async (texts) => texts.map(() => [1, 0]) },
+  broken: { label: "BAAI/bge-m3", embed: async () => { throw new Error("network down"); } },
+};
 
 async function run(c) {
   switch (c.op) {
@@ -28,16 +34,16 @@ async function run(c) {
     case "join": return E.joinBrokenLines(c.text);
     case "chunk": return E.chunkPages(c.pages);
     case "lang": return E.detectLanguage(c.text);
-    case "system_prompt": return E.buildSystemPrompt(ctx.prompts, c.profile, c.lang);
-    case "coverage_prompt":
-      return E.buildCoveragePrompt(ctx.units.get(c.unit_id), c.pairs.map(([id, chunks]) => [objective(id), chunks]), c.mode);
-    case "accuracy_prompt": return E.buildAccuracyPrompt(c.chunks, c.related.map(objective), c.hints);
+    case "judge": {
+      const chunks = c.chunks.map((text, i) => ({ chunk_id: `t-c${i + 1}`, page: null, text }));
+      return E.judgeCoverage(objective(c.objective_id), chunks, c.lang, c.score == null ? null : { score: c.score, chunk: chunks[0] });
+    }
     case "markdown": return E.renderMarkdown(c.report);
     case "patch": return E.applyPatches(c.material, c.findings);
-    case "validate": { const errors = []; E.validate(ctx.schemas[c.schema], c.value, "input", errors); return errors.length; }
     case "review":
       return E.runReview(ctx, { filename: c.filename, bytes: Buffer.from(c.text, "utf-8"), unitId: c.unit_id,
-                               reportLang: c.report_lang, objectiveIds: c.objective_ids, includeExtension: c.include_extension });
+                               reportLang: c.report_lang, objectiveIds: c.objective_ids, includeExtension: c.include_extension,
+                               embedder: c.embedder && FAKE_EMBEDDERS[c.embedder] });
     default: throw new Error(`unknown op ${c.op}`);
   }
 }
