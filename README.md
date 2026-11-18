@@ -38,10 +38,33 @@ DEMO_MODE=true uvicorn app.main:app --port 8000
 
 ## 上線部署
 
+**GitHub Pages（網上版，無需伺服器）**
+
+把整個資料夾上載到 GitHub，在倉庫 Settings → Pages 選 “Deploy from a branch”、`main`、`/ (root)`。約一分鐘後開啟 `https://你的帳戶.github.io/倉庫名稱/`，會自動轉到 `app/static/`。網頁找不到伺服器時會自動改用瀏覽器內的審查引擎（`app/static/engine.js`）：
+
+- 簡體字及香港用語檢查、切塊、報告、修訂版下載，與伺服器版結果相同（`tests/test_static_engine.py` 逐項比對）。
+- 老師可填寫自己的 Anthropic API 金鑰，由 Claude 檢查內容覆蓋及準確性；金鑰只存於該瀏覽器。不填則以關鍵詞比對覆蓋。
+- 審查記錄及單元核對只存於該瀏覽器；檢索以字元比對，**不能執行 bge-m3 等檢索模型**（需要伺服器，見下文 Hugging Face）。
+- 新增或修改 `data/curriculum/`、`data/glossary/` 或 prompt 後，執行 `python -m scripts.build_static` 並一併提交，網上版才會讀到。
+- 不可直接雙擊開啟 HTML 檔；本機測試請在倉庫根目錄執行 `python -m http.server`，再開啟 http://localhost:8000/。
+
+**Hugging Face Spaces（免費，16 GB RAM，可執行 bge-m3）**
+
+1. 在 https://huggingface.co/settings/tokens 建立 write token。
+2. 上傳（Space 不存在會自動建立）：`pip install huggingface_hub && HF_TOKEN=hf_xxx python -m scripts.deploy_hf --space 你的帳戶/hk-edu-reviewer`
+3. 在 Space 的 Settings → Variables and secrets 加入 `ANTHROPIC_API_KEY` 及 `ACCESS_CODE`。首次建置約 10–20 分鐘（映像包含 bge-m3）。
+4. 想每次 push 到 GitHub 都自動更新：在 GitHub 倉庫加入 secret `HF_TOKEN` 及 variable `HF_SPACE`，`.github/workflows/deploy-hf.yml` 會自動上傳。
+
+網址為 `https://你的帳戶-hk-edu-reviewer.hf.space`。免費 Space 重新啟動後審查記錄會清空。
+
+**自己的伺服器（Docker）**
+
 ```bash
 docker build -t hk-edu-reviewer .
 docker run -p 8000:8000 --env-file .env -v $(pwd)/data:/app/data hk-edu-reviewer
 ```
+
+容器以 uid 1000 執行，掛載的 `data/` 須可由此使用者寫入。
 
 上線前必須：設定 `ACCESS_CODE`；以 HTTPS 提供服務（例如放在 Caddy 或 Nginx 之後）；定期備份 `data/app.db` 及 `data/curriculum/`。系統只儲存教材的擷取文字及審查結果，不儲存原檔；教材內容會傳送到 Anthropic API 作審查，請按學校的資料政策告知老師。目前所有使用者共用一個存取碼，不設個人帳戶及學校之間的資料分隔，適合單一學校或小規模試用。
 
@@ -104,6 +127,9 @@ hk-edu-reviewer/
 │   ├── main.py                  # 網站入口：/ 網頁、/api 介面、背景審查工作、存取碼
 │   ├── db.py                    # SQLite：審查記錄、老師回饋
 │   ├── static/                  # 前端（HTML／CSS／JS，無需建置；i18n.js 為中英文介面文字）
+│   │   ├── engine.js            # 網上版（GitHub Pages）審查引擎，移植自 services/
+│   │   ├── static-api.js        # 沒有伺服器時，在瀏覽器內模擬 /api
+│   │   └── vendor/              # build_static 產生：OpenCC 字表、prompt、tool schema
 │   ├── subjects.py              # 科目登記
 │   ├── config.py                # 所有參數（模型、chunk 大小、信心門檻…）
 │   ├── schemas.py               # Pydantic 模型，同時作為 LLM tool 的 JSON Schema
@@ -134,6 +160,7 @@ hk-edu-reviewer/
 ├── docs/screenshots/            # README 截圖
 ├── .github/workflows/tests.yml  # 每次 push 自動執行測試
 ├── scripts/
+│   ├── build_static.py          # 產生網上版需要的 data/manifest.json 及 app/static/vendor/
 │   ├── extract_curriculum.py    # 官方 PDF → 課程 JSON（含延展部分偵測、逐字核對）
 │   └── ingest_curriculum.py     # 課程 JSON → Chroma
 └── tests/test_offline.py

@@ -8,7 +8,7 @@ const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const LEVELS = ["S1", "S2", "S3"];
 
-const state = { lang: "zh", config: null, subjects: null, pollTimer: null };
+const state = { lang: "zh", config: null, subjects: null, pollTimer: null, static: false };
 const main = $("#main");
 
 /* ---------- 語言 ---------- */
@@ -29,8 +29,8 @@ function applyStatic() {
   $$("[data-i18n-placeholder]").forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
   $$(".lang-switch button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.lang === state.lang));
   const bar = $("#demo-bar");
-  bar.hidden = !state.config?.demo_mode;
-  bar.textContent = t("demo_note");
+  bar.hidden = !state.config?.demo_mode && !state.static;
+  bar.textContent = t(state.static ? "static_note" : "demo_note");
 }
 
 function setLang(lang) {
@@ -42,7 +42,8 @@ function setLang(lang) {
 
 /* ---------- 共用 ---------- */
 async function api(path, opts = {}) {
-  const res = await fetch(`/api${path}`, { credentials: "same-origin", ...opts });
+  if (state.static) return window.StaticApi.request(path, opts);
+  const res = await fetch(`api${path}`, { credentials: "same-origin", ...opts });
   if (res.status === 401 && path !== "/login") {
     showLogin();
     throw new Error(t("login_title"));
@@ -147,8 +148,8 @@ async function viewNew(params) {
   const subjects = await loadSubjects();
   const models = state.config.embedding_models || [];
   const usable = models.filter((m) => m.available).map((m) => m.key);
-  let savedModel = "";
-  try { savedModel = localStorage.getItem("hkr-embed") || ""; } catch { /* 略過 */ }
+  let savedModel = "", savedKey = "";
+  try { savedModel = localStorage.getItem("hkr-embed") || ""; savedKey = localStorage.getItem("hkr-anthropic-key") || ""; } catch { /* 略過 */ }
   const form = { subject: params.get("subject") || "", level: params.get("level") || "", unit: null, file: null,
     mode: "file", text: "",
     model: [savedModel, state.config.embedding_default].find((k) => usable.includes(k)) || usable[0] || "" };
@@ -189,7 +190,12 @@ async function viewNew(params) {
             <textarea id="paste" rows="12" placeholder="${esc(t("paste_placeholder"))}"></textarea>
             <p class="meta" id="paste-count" style="margin:6px 0 0">${esc(t("chars_n", { n: 0 }))}</p>
           </div>
-          <div style="margin-top:18px">
+          ${state.static ? `<div style="margin-top:18px">
+            <label class="field-label" for="api-key">${esc(t("api_key_label"))}</label>
+            <input type="password" id="api-key" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" value="${esc(savedKey)}">
+            <p class="meta" style="margin:8px 0 0">${esc(t("api_key_hint"))}</p>
+            <div class="notice notice-info" style="margin-top:10px">${esc(t("embed_static"))}</div>
+          </div>` : `<div style="margin-top:18px">
             <span class="field-label">${esc(t("embed_label"))}</span>
             ${state.config.demo_mode ? `<div class="notice notice-info">${esc(t("embed_demo"))}</div>` : ""}
             <div class="unit-list model-list" role="radiogroup" aria-label="${esc(t("embed_label"))}">
@@ -200,7 +206,7 @@ async function viewNew(params) {
                   ${m.available ? "" : `<span class="tag tag-warn">${esc(t(`reason_${m.reason}`, { env: m.env }))}</span>`}</span></label>`).join("")}
             </div>
             <p class="meta" style="margin:8px 0 0">${esc(t("embed_hint"))}</p>
-          </div>
+          </div>`}
           <div style="margin-top:18px">
             <span class="field-label">${esc(t("report_lang"))}</span>
             <div class="choices">
@@ -325,11 +331,15 @@ async function viewNew(params) {
       name = /\.(txt|md)$/i.test(title) ? title : `${title}.txt`;
     } else if (!form.file) return (err.textContent = t("need_file"));
     if (upload.size > state.config.max_upload_mb * 1048576) return (err.textContent = t("too_big", { mb: state.config.max_upload_mb }));
-    if (!state.config.demo_mode && !form.model) return (err.textContent = t("need_model"));
+    if (!state.config.demo_mode && !state.static && !form.model) return (err.textContent = t("need_model"));
 
     const fd = new FormData();
     fd.append("file", upload, name);
-    if (!state.config.demo_mode) fd.append("embedding_model", form.model);
+    if (state.static) {
+      const key = $("#api-key").value.trim();
+      try { if (key) localStorage.setItem("hkr-anthropic-key", key); else localStorage.removeItem("hkr-anthropic-key"); } catch { /* 略過 */ }
+      if (key) fd.append("api_key", key);
+    } else if (!state.config.demo_mode) fd.append("embedding_model", form.model);
     fd.append("unit_id", form.unit.unit_id);
     fd.append("include_extension", !!$("#ext")?.checked);
     if (skills || scopeSome) fd.append("objective_ids", points.join(","));
@@ -408,9 +418,9 @@ function correctionHTML(f) {
   return `<div class="correction"><del>${esc(p.anchor_text || f.original_text)}</del><ins>${esc(p.new_text)}</ins></div>`;
 }
 
-function findingHTML(f, fb) {
+function findingHTML(f, fb, report) {
   const decision = fb[f.finding_id]?.decision || "";
-  const by = f.source === "rule" ? t("by_rule") : state.config.demo_mode ? t("by_demo") : t("by_ai");
+  const by = f.source === "rule" ? t("by_rule") : state.config.demo_mode || report.model === "keyword-match" ? t("by_demo") : t("by_ai");
   const where = [f.page ? t("page_n", { n: f.page }) : "", by].filter(Boolean).join(P().comma);
   const refs = (f.curriculum_refs || []).join(P().list);
   return `<article class="finding ${decision === "rejected" ? "is-rejected" : ""}" data-id="${esc(f.finding_id)}" data-cat="${esc(f.category)}">
@@ -460,7 +470,7 @@ function renderReport(row) {
               <button class="chip" type="button" data-filter="all" aria-pressed="true">${esc(t("filter_all"))}<span class="n">${r.findings.length}</span></button>
               ${cats.map((k) => `<button class="chip" type="button" data-filter="${k}" aria-pressed="false">${esc(t(`cat.${k}`))}<span class="n">${counts[k]}</span></button>`).join("")}
             </div>
-            <div class="sheet" id="sheet">${r.findings.map((f) => findingHTML(f, fb)).join("")}</div>`
+            <div class="sheet" id="sheet">${r.findings.map((f) => findingHTML(f, fb, r)).join("")}</div>`
           : `<div class="empty"><p>${esc(t("no_findings"))}</p></div>`}
         </div>
         <div role="tabpanel" id="panel-c" aria-labelledby="tab-c" hidden>
@@ -481,8 +491,8 @@ function renderReport(row) {
           <li><b id="accepted-n">${accepted()}</b>${esc(t("tally_accepted"))}</li>
         </ul>
         <div class="btn-col" style="display:grid;gap:8px">
-          <a class="btn btn-primary" id="revised" href="/api/reviews/${esc(row.id)}/revised" download aria-disabled="${accepted() === 0}">${esc(t("dl_revised"))}</a>
-          <a class="btn" href="/api/reviews/${esc(row.id)}/markdown" download>${esc(t("dl_report"))}</a>
+          <a class="btn btn-primary dl" id="revised" href="api/reviews/${esc(row.id)}/revised" download aria-disabled="${accepted() === 0}">${esc(t("dl_revised"))}</a>
+          <a class="btn dl" href="api/reviews/${esc(row.id)}/markdown" download>${esc(t("dl_report"))}</a>
         </div>
       </aside>
     </div>`, "reviews");
@@ -495,6 +505,17 @@ function renderReport(row) {
     $$(".chip").forEach((c) => c.setAttribute("aria-pressed", c === chip));
     $$(".finding").forEach((el) => { el.hidden = chip.dataset.filter !== "all" && el.dataset.cat !== chip.dataset.filter; });
   }));
+  if (state.static) {
+    $$(".dl").forEach((a) => a.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try {
+        const { filename, text } = await window.StaticApi.download(a.getAttribute("href").replace(/^api/, ""));
+        const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+        Object.assign(document.createElement("a"), { href: url, download: filename }).click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch (ex) { toast(ex.message); }
+    }));
+  }
 
   $("#sheet")?.addEventListener("click", async (e) => {
     const card = e.target.closest(".finding");
@@ -585,6 +606,7 @@ async function viewUnit(id) {
                      : `<button class="btn btn-primary" id="verify" type="button">${esc(t("confirm"))}</button>`}
       </div>
       <p class="form-error" id="verify-error" role="alert"></p>
+      ${state.static ? `<p class="meta">${esc(t("static_local"))}</p>` : ""}
     </section>`, "units");
 
   const submit = async (verified, msgKey) => {
@@ -642,8 +664,14 @@ $("#login-form").addEventListener("submit", async (e) => {
   $("#teacher-name").addEventListener("change", () => { try { localStorage.setItem("hkr-teacher", teacher()); } catch { /* 略過 */ } });
   $$(".lang-switch button").forEach((b) => b.addEventListener("click", () => setLang(b.dataset.lang)));
   applyStatic();
+  if (location.protocol === "file:") return setView(`<div class="notice notice-error" role="alert">${esc(t("file_protocol"))}</div>`, "home");
   try {
-    state.config = await api("/config");
+    const res = await fetch("api/config", { credentials: "same-origin" });
+    state.config = res.ok && (res.headers.get("content-type") || "").includes("json") ? await res.json() : null;
+  } catch { state.config = null; }
+  try {
+    // 沒有伺服器（例如 GitHub Pages）：改用瀏覽器內的審查引擎
+    if (!state.config) { state.static = true; state.config = await api("/config"); }
   } catch (err) {
     return errorView(err, "home");
   }

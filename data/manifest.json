@@ -1,0 +1,13 @@
+{
+ "curriculum": [
+  "DEMO-CHI-NARRATIVE.json",
+  "DEMO-ENG-NARRATIVE.json",
+  "DEMO-MATH-DIRECTED.json",
+  "DEMO-SCI-WATER-EN.json",
+  "DEMO-water.json"
+ ],
+ "glossary": [
+  "en_british.json",
+  "zh_hk_terms.json"
+ ]
+}

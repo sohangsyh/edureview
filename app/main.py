@@ -114,8 +114,10 @@ def create_app(services: Services | None = None) -> FastAPI:
         if not s.access_code or not secrets.compare_digest(body.code, s.access_code):
             raise HTTPException(401, "存取碼不正確")
         resp = JSONResponse({"ok": True})
-        resp.set_cookie(ACCESS_COOKIE, _token(s.access_code), httponly=True, samesite="lax",
-                        max_age=60 * 60 * 24 * 30)
+        # 經 HTTPS 時可能嵌在其他網域的 iframe 內（例如 Hugging Face Space 頁面），Lax cookie 會被瀏覽器擋住
+        https = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+        resp.set_cookie(ACCESS_COOKIE, _token(s.access_code), httponly=True, secure=https,
+                        samesite="none" if https else "lax", max_age=60 * 60 * 24 * 30)
         return resp
 
     # ---------- 科目 ----------

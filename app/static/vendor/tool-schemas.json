@@ -1,0 +1,227 @@
+{
+ "coverage": {
+  "properties": {
+   "items": {
+    "items": {
+     "properties": {
+      "objective_id": {
+       "title": "Objective Id",
+       "type": "string"
+      },
+      "status": {
+       "enum": [
+        "covered",
+        "partial",
+        "missing",
+        "unassessed"
+       ],
+       "title": "CoverageStatus",
+       "type": "string",
+       "description": "covered / partial / missing（不要使用 unassessed）"
+      },
+      "evidence_chunk_ids": {
+       "default": [],
+       "description": "支持判斷的教材片段 ID",
+       "items": {
+        "type": "string"
+       },
+       "title": "Evidence Chunk Ids",
+       "type": "array"
+      },
+      "rationale": {
+       "description": "判斷理由，一至兩句",
+       "title": "Rationale",
+       "type": "string"
+      },
+      "patch": {
+       "anyOf": [
+        {
+         "properties": {
+          "action": {
+           "enum": [
+            "insert_after",
+            "replace",
+            "delete"
+           ],
+           "title": "PatchAction",
+           "type": "string",
+           "description": "insert_after：在 anchor_text 之後插入；replace：以 new_text 取代 anchor_text；delete：刪除 anchor_text"
+          },
+          "anchor_text": {
+           "description": "逐字摘自教材的原文（含標點）。insert_after 時為插入位置前的句子；找不到合適位置可留空字串",
+           "title": "Anchor Text",
+           "type": "string"
+          },
+          "new_text": {
+           "description": "可直接貼入教材的香港繁體中文文字；delete 時留空字串",
+           "title": "New Text",
+           "type": "string"
+          }
+         },
+         "required": [
+          "action",
+          "anchor_text",
+          "new_text"
+         ],
+         "title": "Patch",
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "status 為 partial 或 missing 時必須提供補丁"
+      }
+     },
+     "required": [
+      "objective_id",
+      "status",
+      "rationale"
+     ],
+     "title": "CoverageItem",
+     "type": "object"
+    },
+    "title": "Items",
+    "type": "array"
+   }
+  },
+  "required": [
+   "items"
+  ],
+  "title": "CoverageOutput",
+  "type": "object"
+ },
+ "findings": {
+  "properties": {
+   "findings": {
+    "items": {
+     "properties": {
+      "category": {
+       "enum": [
+        "simplified",
+        "omission",
+        "factual_error",
+        "imprecise",
+        "terminology",
+        "language",
+        "safety"
+       ],
+       "title": "Category",
+       "type": "string"
+      },
+      "severity": {
+       "enum": [
+        "high",
+        "medium",
+        "low"
+       ],
+       "title": "Severity",
+       "type": "string"
+      },
+      "chunk_id": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "問題所在的教材片段 ID",
+       "title": "Chunk Id"
+      },
+      "original_text": {
+       "default": "",
+       "description": "逐字複製的問題原文；omission 可留空",
+       "title": "Original Text",
+       "type": "string"
+      },
+      "issue": {
+       "description": "問題說明：錯在哪裏、為何會誤導中一學生",
+       "title": "Issue",
+       "type": "string"
+      },
+      "suggestion": {
+       "description": "修改建議（給老師看的說明）",
+       "title": "Suggestion",
+       "type": "string"
+      },
+      "patch": {
+       "anyOf": [
+        {
+         "properties": {
+          "action": {
+           "enum": [
+            "insert_after",
+            "replace",
+            "delete"
+           ],
+           "title": "PatchAction",
+           "type": "string",
+           "description": "insert_after：在 anchor_text 之後插入；replace：以 new_text 取代 anchor_text；delete：刪除 anchor_text"
+          },
+          "anchor_text": {
+           "description": "逐字摘自教材的原文（含標點）。insert_after 時為插入位置前的句子；找不到合適位置可留空字串",
+           "title": "Anchor Text",
+           "type": "string"
+          },
+          "new_text": {
+           "description": "可直接貼入教材的香港繁體中文文字；delete 時留空字串",
+           "title": "New Text",
+           "type": "string"
+          }
+         },
+         "required": [
+          "action",
+          "anchor_text",
+          "new_text"
+         ],
+         "title": "Patch",
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null
+      },
+      "curriculum_refs": {
+       "default": [],
+       "description": "相關課程重點 ID，只可使用 <curriculum> 中出現的 ID",
+       "items": {
+        "type": "string"
+       },
+       "title": "Curriculum Refs",
+       "type": "array"
+      },
+      "confidence": {
+       "description": "你對此問題成立的把握，0 至 1",
+       "maximum": 1,
+       "minimum": 0,
+       "title": "Confidence",
+       "type": "number"
+      }
+     },
+     "required": [
+      "category",
+      "severity",
+      "issue",
+      "suggestion",
+      "confidence"
+     ],
+     "title": "Finding",
+     "type": "object"
+    },
+    "title": "Findings",
+    "type": "array"
+   }
+  },
+  "required": [
+   "findings"
+  ],
+  "title": "FindingsOutput",
+  "type": "object"
+ }
+}
