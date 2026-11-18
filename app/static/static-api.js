@@ -28,13 +28,12 @@ window.StaticApi = (() => {
   let ctxPromise = null, scriptPromise = null;
   function context() {
     ctxPromise ??= (async () => {
-      const [subjects, manifest, prompts, schemas] = await Promise.all([
-        fetchJson(new URL("subjects.json", DATA)), fetchJson(new URL("manifest.json", DATA)),
-        fetchJson(new URL("prompts.json", VENDOR)), fetchJson(new URL("tool-schemas.json", VENDOR))]);
+      const [subjects, manifest] = await Promise.all([
+        fetchJson(new URL("subjects.json", DATA)), fetchJson(new URL("manifest.json", DATA))]);
       const [units, glossaries] = await Promise.all([
         Promise.all(manifest.curriculum.map((f) => fetchJson(new URL(`curriculum/${f}`, DATA)))),
         Promise.all(manifest.glossary.map((f) => fetchJson(new URL(`glossary/${f}`, DATA))))]);
-      const ctx = E.createContext({ subjects: subjects.subjects, units, glossaries, prompts, schemas });
+      const ctx = E.createContext({ subjects: subjects.subjects, units, glossaries });
       // 老師在此瀏覽器核對過的年級及核對狀態
       for (const [id, o] of Object.entries(load(UNITS_KEY, {}))) {
         const u = ctx.units.get(id);
@@ -53,6 +52,39 @@ window.StaticApi = (() => {
     })().catch((err) => { scriptPromise = null; throw err; });
     return scriptPromise;
   }
+
+  /* ---------- BAAI/bge-m3（transformers.js，ONNX 8-bit 版約 570 MB，首次下載後由瀏覽器快取） ---------- */
+  const TRANSFORMERS = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5";
+  const BGE_M3 = { repo: "Xenova/bge-m3", label: "BAAI/bge-m3" };
+  let extractorPromise = null, onDownload = null;
+  function loadExtractor() {
+    extractorPromise ??= (async () => {
+      const { pipeline, env } = await import(TRANSFORMERS);
+      env.allowLocalModels = false;
+      const files = {};
+      return pipeline("feature-extraction", BGE_M3.repo, { dtype: "q8", progress_callback: (e) => {
+        if (e.status !== "progress" || !e.total) return;
+        files[e.file] = [e.loaded, e.total];
+        const [loaded, total] = Object.values(files).reduce((a, [l, t]) => [a[0] + l, a[1] + t], [0, 0]);
+        onDownload?.(Math.floor(loaded / total * 100));
+      } });
+    })().catch((err) => { extractorPromise = null; throw err; });
+    return extractorPromise;
+  }
+  const bgeEmbedder = (progress) => ({
+    label: BGE_M3.label,
+    async embed(texts, onDone = () => {}) {
+      onDownload = (p) => progress(`model:${p}`, 0.15);
+      const extractor = await loadExtractor().finally(() => { onDownload = null; });
+      const out = [];
+      for (let i = 0; i < texts.length; i += 4) {
+        const t = await extractor(texts.slice(i, i + 4), { pooling: "cls", normalize: true });
+        out.push(...t.tolist());
+        onDone(out.length);
+      }
+      return out;
+    },
+  });
 
   const unitOr404 = (ctx, id) => ctx.units.get(id) || fail("找不到此單元");
 
@@ -99,11 +131,10 @@ window.StaticApi = (() => {
     (async () => {
       try {
         await ensureScript(ctx);
+        const progress = (stage, value) => { Object.assign(row, { status: "running", stage, progress: Math.round(value * 1000) / 1000 }); };
         row.report = await E.runReview(ctx, {
           filename: name, bytes, unitId: unit.unit_id, includeExtension, objectiveIds: ids.length ? ids : null,
-          reportLang, apiKey: String(fd.get("api_key") || ""),
-          progress: (stage, value) => { Object.assign(row, { status: "running", stage, progress: Math.round(value * 1000) / 1000 }); },
-          onText: (text) => { row.material = text; },
+          reportLang, embedder: bgeEmbedder(progress), progress, onText: (text) => { row.material = text; },
         });
         Object.assign(row, { status: "done", stage: "done", progress: 1 });
       } catch (err) {
@@ -138,7 +169,7 @@ window.StaticApi = (() => {
 
     if (p === "/config") {
       return { static: true, demo_mode: false, access_required: false, max_upload_mb: MAX_MB,
-               model: (await context()).prompts.llm_model, embedding_models: [], embedding_default: "" };
+               model: BGE_M3.label, embedding_models: [], embedding_default: "" };
     }
     const ctx = await context();
     const units = [...ctx.units.values()];

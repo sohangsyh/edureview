@@ -1,17 +1,14 @@
 "use strict";
 /* 瀏覽器版審查引擎：在沒有伺服器的網站（例如 GitHub Pages）上執行審查。
-   每一部分對應 app/services/ 及 app/prompts/ 的 Python 程式；修改其中一邊時，另一邊要一起改。
+   每一部分對應 app/services/ 的 Python 程式；修改其中一邊時，另一邊要一起改。
+   覆蓋判斷以 bge-m3 語意相似度加關鍵詞比對（不使用生成式 AI），因此不會找出內容錯誤。
    tests/test_static_engine.py 會以 Node 執行本檔，逐項核對兩邊的結果。 */
 (function (root, factory) {
   const engine = factory();
   if (typeof module === "object" && module.exports) module.exports = engine;
   else root.HKREngine = engine;
 })(typeof self !== "undefined" ? self : this, function () {
-  const SETTINGS = {
-    chunk_size: 700, chunk_overlap: 100, evidence_top_k: 3, curriculum_top_k: 4,
-    accuracy_batch_size: 4, coverage_group_size: 8, min_confidence: 0.5,
-    llm_max_tokens: 8000, llm_concurrency: 4,
-  };
+  const SETTINGS = { chunk_size: 700, chunk_overlap: 100, evidence_top_k: 3, min_confidence: 0.5 };
   const cps = (s) => Array.from(s);
   const cpLen = (s) => cps(s).length;
   const pyStrip = (s) => s.replace(/^\s+|\s+$/g, "");
@@ -333,7 +330,7 @@
     return { check };
   }
 
-  /* ---------- 檢索：字元二元組相似度（瀏覽器版不載入 embedding 模型） ---------- */
+  /* ---------- 檢索：bge-m3 向量；未能載入模型時以字元二元組代替 ---------- */
   function bigrams(text) {
     const v = new Map();
     const a = cps(text);
@@ -342,212 +339,62 @@
     for (const x of v.values()) norm += x * x;
     return { v, norm: Math.sqrt(norm) || 1 };
   }
-  function similarity(a, b) {
+  function bigramSimilarity(a, b) {
     const [small, big] = a.v.size < b.v.size ? [a, b] : [b, a];
     let dot = 0;
     for (const [k, x] of small.v) dot += x * (big.v.get(k) || 0);
     return dot / (a.norm * b.norm);
   }
-  const topK = (query, items, k) => items.map((it) => [similarity(query, it.vec), it]).sort((x, y) => y[0] - x[0])
-    .slice(0, k).map(([, it]) => it.item);
+  const dot = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; };
+  const objectiveQuery = (o) => `${o.text} ${o.key_terms.join(" ")}`;
 
-  function objectiveDocument(o) {
-    const terms = o.key_terms.length ? `｜關鍵詞：${o.key_terms.join("、")}` : "";
-    return `${o.subtopic ? `${o.subtopic}｜` : ""}${o.text}${terms}`;
-  }
-
-  function retrieve(unit, objectives, chunks, batches) {
-    const indexed = chunks.map((c) => ({ item: c, vec: bigrams(c.text) }));
-    const evidence = {};
-    for (const o of objectives) {
+  // 以「課程重點」查「教材」：關鍵詞命中的片段優先，再加相似度最高的片段。回傳證據及每項的最高相似度
+  async function retrieve(objectives, chunks, embedder, progress) {
+    let scoreFn;
+    if (embedder) {
+      const chunkVecs = await embedder.embed(chunks.map((c) => c.text), (done) => progress(`embed:${done}/${chunks.length}`, 0.15 + 0.75 * done / chunks.length));
+      const objVecs = await embedder.embed(objectives.map(objectiveQuery));
+      scoreFn = (i) => chunkVecs.map((v) => dot(objVecs[i], v));
+    } else {
+      const chunkVecs = chunks.map((c) => bigrams(c.text));
+      scoreFn = (i) => { const q = bigrams(objectiveQuery(objectives[i])); return chunkVecs.map((v) => bigramSimilarity(q, v)); };
+    }
+    const evidence = {}, best = {};
+    objectives.forEach((o, i) => {
+      const ranked = scoreFn(i).map((s, j) => [s, chunks[j]]).sort((x, y) => y[0] - x[0]);
       const keyword = chunks.filter((c) => o.key_terms.some((t) => c.text.includes(t))).slice(0, 2);
-      const found = [...keyword, ...topK(bigrams(`${o.text} ${o.key_terms.join(" ")}`), indexed, SETTINGS.evidence_top_k)];
+      const found = [...keyword, ...ranked.slice(0, SETTINGS.evidence_top_k).map(([, c]) => c)];
       evidence[o.id] = [...new Map(found.map((c) => [c.chunk_id, c])).values()].slice(0, SETTINGS.evidence_top_k + 2);
-    }
-    const unitObjs = unit.objectives.map((o) => ({ item: o, vec: bigrams(objectiveDocument(o)) }));
-    const related = batches.map((batch) => {
-      const objs = new Map();
-      for (const c of batch) for (const o of topK(bigrams(c.text), unitObjs, SETTINGS.curriculum_top_k)) objs.set(o.id, o);
-      return [...objs.values()];
+      best[o.id] = ranked.length ? { score: ranked[0][0], chunk: ranked[0][1] } : null;
     });
-    return [evidence, related];
+    return [evidence, embedder ? best : null];
   }
 
-  /* ---------- Prompt（prompts/profiles.py、prompts/templates.py） ---------- */
-  const htmlEscape = (s, quote = true) => {
-    let out = String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    if (quote) out = out.replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
-    return out;
-  };
+  /* ---------- 覆蓋判斷：關鍵詞比對（offline.py），有 bge-m3 時加上語意相似度 ---------- */
+  // 以 data/samples 校準：無關科目的相似度不高於 0.54，教材確有論及的學習重點約 0.60 以上。
+  // 相似度只可把「缺漏」提升為「部分處理」；「已處理」仍須所有關鍵詞都出現。
+  const SEMANTIC_PARTIAL = 0.6;
 
-  function buildSystemPrompt(prompts, profile, reportLang = "zh") {
-    return prompts.system_template
-      .replaceAll("{{SUBJECT_PROFILE}}", prompts.profiles[profile] ?? "")
-      .replaceAll("{{OUTPUT_LANGUAGE}}", prompts.output_language[reportLang] ?? prompts.output_language.zh);
-  }
-
-  const chunkXml = (c) => `<chunk id="${c.chunk_id}"${c.page != null ? ` page="${c.page}"` : ""}>\n${htmlEscape(c.text, false)}\n</chunk>`;
-  function objectiveXml(o) {
-    let attrs = ` kind="${o.kind}" tier="${o.tier}"`;
-    if (o.subtopic) attrs += ` subtopic="${htmlEscape(o.subtopic)}"`;
-    if (o.skill) attrs += ' skill="true"';
-    if (o.key_terms.length) attrs += ` key_terms="${o.key_terms.join("、")}"`;
-    return `<objective id="${o.id}"${attrs}>${htmlEscape(o.text, false)}</objective>`;
-  }
-
-  const SKILLS_NOTE = `
-0. 這是語文科。<curriculum> 中的學習重點是老師為這份教材選定的目標：判斷教材是否真正讓學生學習及練習該能力。
-   只解釋知識而沒有練習，屬 partial。`;
-
-  function buildCoveragePrompt(unit, pairs, mode = "content") {
-    const curriculum = pairs.map(([o]) => objectiveXml(o)).join("\n");
-    const material = pairs.map(([o, chunks]) => `<evidence objective_id="${o.id}">\n` + chunks.map(chunkXml).join("\n") + "\n</evidence>").join("\n");
-    return `<task>coverage</task>
-<unit id="${unit.unit_id}">${htmlEscape(unit.title)}</unit>
-
-<curriculum>
-${curriculum}
-</curriculum>
-
-<material>
-${material}
-</material>
-
-<instructions>${mode === "skills" ? SKILLS_NOTE : ""}
-1. <curriculum> 中每一個 objective 都必須輸出剛好一個 item，不可遺漏，不可新增。
-2. <material> 中每組 <evidence> 是系統按語意為該學習重點檢索出的教材片段，可能不完整；若片段與學習重點無關，視作找不到。
-3. status：covered = 有解釋且正確；partial = 只提及名詞或解釋不完整；missing = 找不到。
-4. kind="key_experiment" 是教育局指定的重點實驗：教材須有該實驗的目的、步驟（或明確的實驗安排）及安全提示才算 covered；只在正文提及相關概念屬 partial。
-5. skill="true" 是技能類學習成果：教材須有讓學生實際操作或練習的活動才算 covered。
-6. partial 或 missing 必須附 patch：action 用 insert_after，anchor_text 選最適合插入位置的原文句子（逐字複製），沒有合適位置則留空字串。
-7. 完成後呼叫 submit_coverage 工具。
-</instructions>`;
-  }
-
-  function buildAccuracyPrompt(chunks, related, hints) {
-    const curriculum = related.map(objectiveXml).join("\n") || "（無）";
-    const material = chunks.map(chunkXml).join("\n");
-    const hintXml = hints.map((h) => `<hint chunk_id="${h.chunk_id}" term="${h.term}" hk_preferred="${h.preferred}">${htmlEscape(h.note)}</hint>`).join("\n") || "（無）";
-    return `<task>accuracy</task>
-
-<curriculum>
-${curriculum}
-</curriculum>
-
-<material>
-${material}
-</material>
-
-<term_hints>
-${hintXml}
-</term_hints>
-
-<instructions>
-1. 逐段審查 factual_error、imprecise、terminology、language、safety 五類問題。不要報告 omission 及 simplified（另有流程處理）。
-2. <curriculum> 只作參考，用於填寫 curriculum_refs；不是本任務要檢查的覆蓋清單。
-3. 每項 finding 必須填寫 chunk_id。
-4. <term_hints> 的詞語須按上下文判斷，只在確屬不當用法時才報告。其他明顯的非香港用語已由規則引擎處理，你不必重複報告「視頻」「信息」一類詞語。
-5. 完成後呼叫 submit_findings 工具。
-</instructions>`;
-  }
-
-  /* ---------- 審查者：關鍵詞比對（offline.py）或 Claude（reviewer.py） ---------- */
-  const offlineReviewer = (reportLang) => ({
-    async assessCoverage(system, prompt, pairs) {
-      return { items: pairs.map(([o, chunks]) => {
-        const text = chunks.map((c) => c.text).join("");
-        const terms = o.key_terms || [];
-        const found = terms.filter((t) => text.includes(t));
-        const status = terms.length && found.length === terms.length ? "covered" : found.length ? "partial" : "missing";
-        const rationale = reportLang === "en"
-          ? `Demo mode, keyword match: ${found.length}/${terms.length} key terms found${found.length ? ` (${found.join(", ")})` : ""}.`
-          : `示範模式以關鍵詞比對判斷：找到 ${found.length}／${terms.length} 個關鍵詞${found.length ? `（${found.join("、")}）` : ""}。`;
-        return { objective_id: o.id, status, rationale, patch: null,
-                 evidence_chunk_ids: chunks.filter((c) => found.some((t) => c.text.includes(t))).map((c) => c.chunk_id) };
-      }) };
-    },
-    async reviewAccuracy() { return { findings: [] }; },
-  });
-
-  function validate(schema, value, path, errors) {
-    if (schema.anyOf) {
-      for (const option of schema.anyOf) {
-        const errs = [];
-        const out = validate(option, value, path, errs);
-        if (!errs.length) return out;
-      }
-      errors.push(`${path}: 格式不符`);
-      return value;
+  function judgeCoverage(o, chunks, reportLang, best) {
+    const text = chunks.map((c) => c.text).join("");
+    const terms = o.key_terms || [];
+    const found = terms.filter((t) => text.includes(t));
+    const ids = chunks.filter((c) => found.some((t) => c.text.includes(t))).map((c) => c.chunk_id);
+    let status = terms.length && found.length === terms.length ? "covered" : found.length ? "partial" : "missing";
+    const kw = reportLang === "en"
+      ? `${found.length}/${terms.length} key terms found${found.length ? ` (${found.join(", ")})` : ""}.`
+      : `找到 ${found.length}／${terms.length} 個關鍵詞${found.length ? `（${found.join("、")}）` : ""}。`;
+    if (!best) {
+      const rationale = reportLang === "en" ? `Demo mode, keyword match: ${kw}` : `示範模式以關鍵詞比對判斷：${kw}`;
+      return { objective_id: o.id, status, rationale, patch: null, evidence_chunk_ids: ids };
     }
-    if (schema.enum && !schema.enum.includes(value)) { errors.push(`${path}: 只可為 ${schema.enum.join(" / ")}`); return value; }
-    const fail = (msg) => { errors.push(`${path}: ${msg}`); return value; };
-    switch (schema.type) {
-      case "object": {
-        if (value === null || typeof value !== "object" || Array.isArray(value)) return fail("須為物件");
-        const out = { ...value };
-        for (const [key, sub] of Object.entries(schema.properties || {})) {
-          if (key in value) out[key] = validate(sub, value[key], `${path}.${key}`, errors);
-          else if ("default" in sub) out[key] = JSON.parse(JSON.stringify(sub.default));
-          else if ((schema.required || []).includes(key)) errors.push(`${path}.${key}: 必須填寫`);
-        }
-        return out;
-      }
-      case "array":
-        if (!Array.isArray(value)) return fail("須為陣列");
-        return value.map((x, i) => validate(schema.items || {}, x, `${path}[${i}]`, errors));
-      case "string": return typeof value === "string" ? value : fail("須為文字");
-      case "integer": return Number.isInteger(value) ? value : fail("須為整數");
-      case "number":
-        if (typeof value !== "number" || !Number.isFinite(value)) return fail("須為數字");
-        if (schema.minimum != null && value < schema.minimum) return fail(`不可小於 ${schema.minimum}`);
-        if (schema.maximum != null && value > schema.maximum) return fail(`不可大於 ${schema.maximum}`);
-        return value;
-      case "boolean": return typeof value === "boolean" ? value : fail("須為 true 或 false");
-      case "null": return value === null ? value : fail("須為 null");
-      default: return value;
-    }
-  }
-
-  function claudeReviewer({ apiKey, model, schemas }) {
-    let active = 0;
-    const queue = [];
-    const limit = async (fn) => {
-      if (active >= SETTINGS.llm_concurrency) await new Promise((r) => queue.push(r));
-      active++;
-      try { return await fn(); } finally { active--; queue.shift()?.(); }
-    };
-    async function callTool(system, user, name, description, schema) {
-      const tool = { name, description, input_schema: schema };
-      let messages = [{ role: "user", content: user }];
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const data = await limit(async () => {
-          const res = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01",
-                       "anthropic-dangerous-direct-browser-access": "true" },
-            body: JSON.stringify({ model, max_tokens: SETTINGS.llm_max_tokens, tools: [tool],
-                                   system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
-                                   tool_choice: { type: "tool", name }, messages }),
-          });
-          const body = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(`Anthropic API ${res.status}：${body.error?.message || res.statusText}`);
-          return body;
-        });
-        const block = (data.content || []).find((b) => b.type === "tool_use");
-        if (!block) throw new Error(`模型未有呼叫 ${name}（stop_reason=${data.stop_reason}）`);
-        const errors = [];
-        const out = validate(schema, block.input, "input", errors);
-        if (!errors.length) return out;
-        messages = [...messages, { role: "assistant", content: data.content }, { role: "user", content: [{
-          type: "tool_result", tool_use_id: block.id, is_error: true,
-          content: `輸出不符合 schema，請修正後重新呼叫 ${name}：${errors.join("；")}` }] }];
-      }
-      throw new Error(`${name} 輸出兩次驗證失敗`);
-    }
-    return {
-      assessCoverage: (system, prompt) => callTool(system, prompt, "submit_coverage", "提交課程重點覆蓋判斷結果", schemas.coverage),
-      reviewAccuracy: (system, prompt) => callTool(system, prompt, "submit_findings", "提交教材審查問題清單", schemas.findings),
-    };
+    if (status === "missing" && best.score >= SEMANTIC_PARTIAL) status = "partial";
+    if (best.score >= SEMANTIC_PARTIAL && !ids.includes(best.chunk.chunk_id)) ids.unshift(best.chunk.chunk_id);
+    const score = best.score.toFixed(2);
+    const rationale = reportLang === "en"
+      ? `bge-m3 similarity ${score} (${best.score >= SEMANTIC_PARTIAL ? "related content found" : "no closely related content"}); keyword match: ${kw}`
+      : `bge-m3 語意相似度 ${score}（${best.score >= SEMANTIC_PARTIAL ? "找到相關內容" : "未見相關內容"}）；關鍵詞比對：${kw}`;
+    return { objective_id: o.id, status, rationale, patch: null, evidence_chunk_ids: ids };
   }
 
   /* ---------- 驗證與組裝（pipeline.py _assemble、validation.py） ---------- */
@@ -653,20 +500,23 @@ ${hintXml}
   }
 
   /* ---------- 主流程（pipeline.py run） ---------- */
-  function* batched(items, n) { for (let i = 0; i < items.length; i += n) yield items.slice(i, i + n); }
+  const KEYWORD_LABEL = "char-bigram (browser)";
+  const EMBED_FAIL = {
+    zh: "未能載入 bge-m3（{e}），本次改用關鍵詞比對判斷覆蓋，結果較粗略。",
+    en: "Could not load bge-m3 ({e}); coverage used keyword matching this time, so results are rougher.",
+  };
 
+  /** embedder：{ label, embed(texts, onProgress) → 已正規化的向量 }；null 則只用關鍵詞比對 */
   async function runReview(ctx, { filename, bytes, unitId, includeExtension = false, objectiveIds = null, reportLang = "zh",
-                                  apiKey = "", progress = () => {}, onText = () => {} }) {
+                                  embedder = null, progress = () => {}, onText = () => {} }) {
     const unit = ctx.units.get(unitId);
     if (!unit) throw new Error("找不到此單元");
     const subject = ctx.subjects.get(unit.subject);
-    const mode = subject ? subject.mode : "content";
-    const system = buildSystemPrompt(ctx.prompts, subject ? subject.profile : "science", reportLang);
     let objectives;
     if (objectiveIds && objectiveIds.length) {
       const wanted = new Set(objectiveIds);
       objectives = unit.objectives.filter((o) => wanted.has(o.id));
-    } else if (mode === "skills") {
+    } else if (subject && subject.mode === "skills") {
       throw new Error("語文科須先選擇這份教材針對的學習重點");
     } else {
       objectives = unit.objectives.filter((o) => includeExtension || o.tier === "core");
@@ -683,33 +533,25 @@ ${hintXml}
 
     progress("rules", 0.1);
     const [scriptFindings, scriptSummary] = ctx.script.check(chunks, reportLang);
-    const [termFindings, hints] = ctx.terms.check(chunks);
-    const batches = [...batched(chunks, SETTINGS.accuracy_batch_size)];
+    const [termFindings] = ctx.terms.check(chunks);
     progress("retrieve", 0.15);
-    const [evidence, related] = retrieve(unit, objectives, chunks, batches);
-
-    const reviewer = apiKey ? claudeReviewer({ apiKey, model: ctx.prompts.llm_model, schemas: ctx.schemas }) : offlineReviewer(reportLang);
-    const covTasks = [...batched(objectives, SETTINGS.coverage_group_size)].map((g) => {
-      const pairs = g.map((o) => [o, evidence[o.id]]);
-      return () => reviewer.assessCoverage(system, buildCoveragePrompt(unit, pairs, mode), pairs);
-    });
-    const accTasks = batches.map((b, i) => () => reviewer.reviewAccuracy(
-      system, buildAccuracyPrompt(b, related[i], b.flatMap((c) => hints[c.chunk_id] || [])), b));
-    const total = covTasks.length + accTasks.length;
-    let done = 0;
-    progress(`ai:0/${total}`, 0.2);
-    const results = await Promise.all([...covTasks, ...accTasks].map(async (task) => {
-      try { return await task(); } catch (e) { return e instanceof Error ? e : new Error(String(e)); } finally {
-        done += 1;
-        progress(`ai:${done}/${total}`, 0.2 + 0.75 * done / total);
-      }
-    }));
+    let used = embedder, failure = null, evidence, best;
+    try {
+      [evidence, best] = await retrieve(objectives, chunks, embedder, progress);
+    } catch (e) {
+      if (!embedder) throw e;
+      used = null;
+      failure = errText(e);
+      [evidence, best] = await retrieve(objectives, chunks, null, progress);
+    }
+    const items = objectives.map((o) => judgeCoverage(o, evidence[o.id], reportLang, best && best[o.id]));
     progress("assemble", 0.97);
-    return assemble(ctx, unit, objectives, chunks, results.slice(0, covTasks.length), results.slice(covTasks.length),
-      [...scriptFindings, ...termFindings], scriptSummary, {
-        reportLang, materialLang, includeExtension, selected: !!(objectiveIds && objectiveIds.length),
-        model: apiKey ? ctx.prompts.llm_model : "keyword-match", embeddingLabel: "char-bigram (browser)",
-      });
+    const report = assemble(ctx, unit, objectives, chunks, [{ items }], [], [...scriptFindings, ...termFindings], scriptSummary, {
+      reportLang, materialLang, includeExtension, selected: !!(objectiveIds && objectiveIds.length),
+      model: used ? "semantic-match" : "keyword-match", embeddingLabel: used ? used.label : KEYWORD_LABEL,
+    });
+    if (failure) report.warnings.push(fmt(EMBED_FAIL[reportLang] || EMBED_FAIL.zh, { e: failure }));
+    return report;
   }
 
   /* ---------- 報告輸出（renderer.py）及補丁（patcher.py） ---------- */
@@ -810,7 +652,7 @@ ${hintXml}
     };
   }
 
-  function createContext({ subjects, units, glossaries, opencc = null, prompts = null, schemas = null }) {
+  function createContext({ subjects, units, glossaries, opencc = null }) {
     const unitMap = new Map(units.map((u) => { const n = normalizeUnit(u); return [n.unit_id, n]; }));
     const all = [...unitMap.values()];
     const ctx = {
@@ -818,7 +660,6 @@ ${hintXml}
       units: unitMap,
       objectiveIds: new Set(all.flatMap((u) => u.objectives.map((o) => o.id))),
       officialTexts: [...all.flatMap((u) => u.objectives.map((o) => `${o.subtopic} ${o.text}`)), ...all.map((u) => u.title)],
-      prompts, schemas,
     };
     ctx.terms = makeTerminologyChecker(glossaries, ctx.officialTexts);
     if (opencc) ctx.script = makeScriptChecker(opencc);
@@ -827,7 +668,6 @@ ${hintXml}
 
   return {
     SETTINGS, createContext, runReview, renderMarkdown, applyPatches, parseDocument, joinBrokenLines, collapseCjkSpaces,
-    chunkPages, detectLanguage, buildSystemPrompt, buildCoveragePrompt, buildAccuracyPrompt, normalizeForMatch,
-    makeScriptChecker, makeTerminologyChecker, validate,
+    chunkPages, detectLanguage, normalizeForMatch, makeScriptChecker, makeTerminologyChecker, judgeCoverage,
   };
 });

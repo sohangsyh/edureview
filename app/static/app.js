@@ -89,6 +89,10 @@ const errorView = (err, nav) => setView(`<div class="notice notice-error" role="
 function stageText(stage) {
   const ai = /^ai:(\d+)\/(\d+)$/.exec(stage || "");
   if (ai) return t("stage_ai", { d: ai[1], t: ai[2] });
+  const embed = /^embed:(\d+)\/(\d+)$/.exec(stage || "");
+  if (embed) return t("stage_embed", { d: embed[1], t: embed[2] });
+  const model = /^model:(\d+)$/.exec(stage || "");
+  if (model) return t("stage_model", { p: model[1] });
   const key = `stage_${stage}`;
   return t(key) === key ? stage : t(key);
 }
@@ -148,8 +152,8 @@ async function viewNew(params) {
   const subjects = await loadSubjects();
   const models = state.config.embedding_models || [];
   const usable = models.filter((m) => m.available).map((m) => m.key);
-  let savedModel = "", savedKey = "";
-  try { savedModel = localStorage.getItem("hkr-embed") || ""; savedKey = localStorage.getItem("hkr-anthropic-key") || ""; } catch { /* 略過 */ }
+  let savedModel = "";
+  try { savedModel = localStorage.getItem("hkr-embed") || ""; } catch { /* 略過 */ }
   const form = { subject: params.get("subject") || "", level: params.get("level") || "", unit: null, file: null,
     mode: "file", text: "",
     model: [savedModel, state.config.embedding_default].find((k) => usable.includes(k)) || usable[0] || "" };
@@ -191,10 +195,8 @@ async function viewNew(params) {
             <p class="meta" id="paste-count" style="margin:6px 0 0">${esc(t("chars_n", { n: 0 }))}</p>
           </div>
           ${state.static ? `<div style="margin-top:18px">
-            <label class="field-label" for="api-key">${esc(t("api_key_label"))}</label>
-            <input type="password" id="api-key" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" value="${esc(savedKey)}">
-            <p class="meta" style="margin:8px 0 0">${esc(t("api_key_hint"))}</p>
-            <div class="notice notice-info" style="margin-top:10px">${esc(t("embed_static"))}</div>
+            <span class="field-label">${esc(t("embed_label"))}</span>
+            <div class="notice notice-info">${esc(t("embed_static"))}</div>
           </div>` : `<div style="margin-top:18px">
             <span class="field-label">${esc(t("embed_label"))}</span>
             ${state.config.demo_mode ? `<div class="notice notice-info">${esc(t("embed_demo"))}</div>` : ""}
@@ -335,11 +337,7 @@ async function viewNew(params) {
 
     const fd = new FormData();
     fd.append("file", upload, name);
-    if (state.static) {
-      const key = $("#api-key").value.trim();
-      try { if (key) localStorage.setItem("hkr-anthropic-key", key); else localStorage.removeItem("hkr-anthropic-key"); } catch { /* 略過 */ }
-      if (key) fd.append("api_key", key);
-    } else if (!state.config.demo_mode) fd.append("embedding_model", form.model);
+    if (!state.static && !state.config.demo_mode) fd.append("embedding_model", form.model);
     fd.append("unit_id", form.unit.unit_id);
     fd.append("include_extension", !!$("#ext")?.checked);
     if (skills || scopeSome) fd.append("objective_ids", points.join(","));
@@ -420,7 +418,8 @@ function correctionHTML(f) {
 
 function findingHTML(f, fb, report) {
   const decision = fb[f.finding_id]?.decision || "";
-  const by = f.source === "rule" ? t("by_rule") : state.config.demo_mode || report.model === "keyword-match" ? t("by_demo") : t("by_ai");
+  const by = f.source === "rule" ? t("by_rule") : report.model === "semantic-match" ? t("by_semantic")
+    : state.config.demo_mode || report.model === "keyword-match" ? t("by_demo") : t("by_ai");
   const where = [f.page ? t("page_n", { n: f.page }) : "", by].filter(Boolean).join(P().comma);
   const refs = (f.curriculum_refs || []).join(P().list);
   return `<article class="finding ${decision === "rejected" ? "is-rejected" : ""}" data-id="${esc(f.finding_id)}" data-cat="${esc(f.category)}">

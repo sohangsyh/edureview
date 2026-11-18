@@ -1,18 +1,13 @@
-"""產生網上靜態版（GitHub Pages）需要的檔案。新增或修改課程單元、詞表、prompt 後執行一次，並一併提交。
+"""產生網上靜態版（GitHub Pages）需要的檔案。新增或修改課程單元或詞表後執行一次，並一併提交。
 
 用法：python -m scripts.build_static
-產生：data/manifest.json、app/static/vendor/（OpenCC 字表、prompts.json、tool-schemas.json）
+產生：data/manifest.json、app/static/vendor/opencc/（簡繁字表）
 tests/test_static_engine.py 會檢查這些檔案是否最新。
 """
 import json
 from pathlib import Path
 
 import opencc
-
-from app.config import Settings
-from app.prompts.profiles import OUTPUT_LANGUAGE, PROFILES
-from app.schemas import CoverageOutput, FindingsOutput
-from app.services.reviewer import inline_refs
 
 ROOT = Path(__file__).resolve().parent.parent
 VENDOR = ROOT / "app" / "static" / "vendor"
@@ -29,16 +24,6 @@ def outputs() -> dict[Path, bytes]:
         data / "manifest.json": _json({
             "curriculum": sorted(p.name for p in (data / "curriculum").glob("*.json")),
             "glossary": sorted(p.name for p in (data / "glossary").glob("*.json")),
-        }),
-        VENDOR / "prompts.json": _json({
-            "system_template": (ROOT / "app" / "prompts" / "system_prompt.md").read_text("utf-8"),
-            "profiles": PROFILES,
-            "output_language": OUTPUT_LANGUAGE,
-            "llm_model": Settings.model_fields["llm_model"].default,
-        }),
-        VENDOR / "tool-schemas.json": _json({
-            "coverage": inline_refs(CoverageOutput.model_json_schema()),
-            "findings": inline_refs(FindingsOutput.model_json_schema()),
         }),
     }
     src = Path(opencc.__file__).parent
